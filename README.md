@@ -31,6 +31,14 @@
 
 ## 安装
 
+**能自动装 GitHub skill 的宿主（Claude Code 等）**：直接发这句给它——
+
+```
+帮我安装这个 skill：https://github.com/keros68/ai-cross
+```
+
+不支持自动安装的，按下面手动放置。
+
 ### Claude Code
 ```
 skill/ai-cross/  →  ~/.claude/skills/
