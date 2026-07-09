@@ -23,11 +23,13 @@
 
 ## 你需要什么
 
-- **至少一个** AI CLI 订阅（Claude Code 或 Codex 任一即可起步）
-- 想解锁**交叉验证**：需要 ≥2 个**不同厂商**的模型（如 Claude + Codex，或 Codex + GLM）
-- 想接 GLM / Kimi / DeepSeek 等：一个对应的 API key（skill 会引导你，只需粘贴）
+**宿主（二选一必需）**：**Claude Code 或 Codex，至少有一个**。这两个是一等公民，充分测试、开箱即用。其他 agent（Qoder、Cursor 等）实测也能跑（见 `qoder/` 的适配示例），但装载方式各异、底层路由可能不透明，需要自己按本文档的通用方法适配，官方不逐一保证。
 
-> 只有 1 个厂商也能用——分层派发照样生效（省的是额度），只是交叉验证这个主功能会如实告诉你"不可用"。
+**多厂商交叉验证 → 依赖 [cc-switch](https://github.com/farion1231/cc-switch)**：把各厂商的 coding plan / API key 配进 cc-switch，skill 只读它、按进程注入，才能干净地在多厂商间切换派发。这是交叉验证这个核心功能的前置依赖。
+
+**至少两家不同厂商的模型**才能解锁交叉验证（如 Claude + Codex，或 Codex + GLM）。只有一家也能用——分层派发照样生效（省的是额度），只是交叉验证会如实告诉你"不可用"。
+
+> 一句话门槛：**Claude Code / Codex 有其一 + cc-switch 里配够两家厂商**，就能用全部功能。
 
 ## 安装
 
