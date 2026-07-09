@@ -1,132 +1,171 @@
-# ai-cross — 跨厂商交叉验证 + 分层派发 skill
+# ai-cross
 
-核心能力：**用不同厂商的模型交叉验证关键产出**——抓出单模型（以及任何同厂商多 agent，如 Claude Code 的 ultracode）抓不出的系统性错误。顺带做分层派发（粗活走便宜档），并全程留痕可审计。
+AI agent 用的跨厂商交叉验证和分层派发 skill。它把关键产出交给不同厂商的模型互相复查，也能按任务风险把扫描、实现和把关分到不同档位，并把派发过程留痕到项目目录。
 
-对订阅 / 包月用户，分层省下的是**会限流的额度**，不是美元；跨厂商交叉验证才是别处没有的能力。
+它不是自动替人做最终判断的多模型投票器。交叉验证能暴露单模型容易漏掉的错误和分歧；可独立验证的数字、代码、格式和结论，仍然要由编排者或人工复核。
 
-支持宿主：Claude Code、Codex、Cursor、WorkBuddy、Qoder 等**任何能跑 shell 命令**的 agent。
+> 中文为主，English summary below.
 
-## 三条实测结论（它们决定了本 skill 长什么样）
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Agent Skill](https://img.shields.io/badge/Agent%20Skill-SKILL.md-green.svg)](skill/ai-cross/SKILL.md)
+[![Cross Vendor](https://img.shields.io/badge/Cross--Vendor-Review-orange.svg)](skill/ai-cross/SKILL.md)
 
-本项目做了三轮基准（含 4 个自造硬任务，避训练集污染；仪器先过 13 项正/负样本自检）。结果推翻了几条"常识"：
+## 适用场景
 
-1. **「档位」几乎不影响正确率。** 最便宜档在全部自造硬任务上与最贵档持平；最贵档只多烧约 2× 推理 token。
-   → 所以**默认往最低档派，验证失败再升级**，别预防性上高档。
-
-2. **真正决定成败的是「要不要模型亲自算」。** 同一个模型：写校验和算法的**代码** 100% 正确（算术交给机器），但让它**亲自**迭代 51 步只有 33%，**肉眼数**数量也只有 33%。而且**所有**模型的自算都会随机出错——最贵的那个也会。
-   → 铁律：**要精确数值就让模型写代码；做不到就自己跑一遍验证。绝不采信任何模型的自算。**
-
-3. **固定开销是「壳」的，不是「模型」的。** 同一个 haiku、同一个空任务：内部 subagent **3,963** token，跨 CLI 外派 **30,230** token，差 **7.6×**。
-   → **有内部通道先用内部**（分层几乎免费）。跨 CLI 外派的唯一正当理由是**换厂商**做交叉验证——为省钱而外派小任务多半是净亏损。
-
-完整数据与"本数据不能支持的结论"见 `bench/RESULTS-HARD-20260708.md`。
+- 重要代码改动、科研分析或长文档处理完成后，想让另一个厂商的模型独立复查。
+- 已经同时使用 Claude Code、Codex、Qoder、GLM、Kimi、StepFun 等多个模型入口，想按任务风险分配给不同通道。
+- 订阅或包月用户想把简单扫描和批量整理交给低成本档，把强模型额度留给架构、审查和方法学把关。
+- 需要保留每次派发的任务、模型、输出、结论和耗时，方便后续复查。
+- 想避免把同一家模型的多个 agent 当成真正独立的交叉验证。
 
 ## 你需要什么
 
-**宿主（二选一必需）**：**Claude Code 或 Codex，至少有一个**。这两个是一等公民，充分测试、开箱即用。其他 agent（Qoder、Cursor 等）实测也能跑（见 `qoder/` 的适配示例），但装载方式各异、底层路由可能不透明，需要自己按本文档的通用方法适配，官方不逐一保证。
+- **宿主 agent**：Claude Code 或 Codex 至少有一个。两者是一等支持目标。
+- **多厂商通道**：做真正交叉验证时，建议先配置 [cc-switch](https://github.com/farion1231/cc-switch)，再由 ai-cross 只读配置并按进程注入。
+- **至少两家不同厂商**：只有一家模型也能做分层派发，但不能做跨厂商交叉验证，skill 会如实提示不可用。
+- **本地 shell 能力**：外部派发依赖命令行入口；不支持 shell 的纯聊天环境不能完整运行。
 
-**多厂商交叉验证 → 依赖 [cc-switch](https://github.com/farion1231/cc-switch)**：把各厂商的 coding plan / API key 配进 cc-switch，skill 只读它、按进程注入，才能干净地在多厂商间切换派发。这是交叉验证这个核心功能的前置依赖。
+API key 和 token 不写进本仓库，也不写入 ai-cross 产出的留痕文件。
 
-**至少两家不同厂商的模型**才能解锁交叉验证（如 Claude + Codex，或 Codex + GLM）。只有一家也能用——分层派发照样生效（省的是额度），只是交叉验证会如实告诉你"不可用"。
+## 它做什么
 
-> 一句话门槛：**Claude Code / Codex 有其一 + cc-switch 里配够两家厂商**，就能用全部功能。
+- 盘点可用模型、厂商、档位和调用通道，生成本机能力清单。
+- 按任务类型选择低档扫描、常规执行、强模型把关或跨厂商复查。
+- 对关键代码和分析结果启动不同厂商模型的交叉审查。
+- 对模型真身做冒烟验证，避免第三方端点静默降级后还被误当成目标模型。
+- 把外部派发的任务全文、通道、模型、原始输出、结论和耗时写入 `.dispatch/`。
+- 在多轮实现、审查、修正时保留状态，避免会话中断后从头再来。
+- 用本地脚本或测试复核可机器验证的结果，不把模型自述当作最终证据。
 
-## 安装
+## 不做什么
 
-**能自动装 GitHub skill 的宿主（Claude Code 等）**：直接发这句给它——
+- 不保证多个模型达成共识就一定正确。
+- 不把同厂商不同档位包装成真正独立的交叉验证。
+- 不预测论文录用、代码合并或方案一定成功。
+- 不绕过登录、验证码、付费墙、机构权限或各平台使用限制。
+- 不自动读取、上传或回显密钥；需要访问本地凭据前会先说明。
+- 不承诺所有 agent 宿主都开箱即用。Claude Code 和 Codex 是主要支持对象，其他宿主需要按各自规则适配。
 
-```
-帮我安装这个 skill：https://github.com/keros68/ai-cross
-```
+## 工作流程
 
-不支持自动安装的，按下面手动放置。
-
-### Claude Code
-```
-skill/ai-cross/  →  ~/.claude/skills/
-agents/ 下 3 个 .md    →  ~/.claude/agents/
-```
-Windows 上 `~` 即 `C:\Users\<用户名>`。装完新开会话生效。
-
-### Codex
-```
-skill/ai-cross/  →  ~/.codex/skills/
-```
-（`agents/` 是 Claude Code 专用的内部通道，Codex 不需要——skill 会自动全走外部命令。）
-
-### 其他 agent
-支持 SKILL.md 的照各自 skills 目录放；不支持的，把 `SKILL.md` 内容加进项目规则文件（如 `AGENTS.md`）。
-
-## 三步上手
-
-**第 1 步 · 盘点**，对 agent 说：
-```
-盘点模型
-```
-它会问你有哪些订阅（申报制，不乱扫你的电脑），逐个冒烟验证，生成能力清单。
-装了 [cc-switch](https://github.com/farion1231/cc-switch) 的话它会**只读**你已有的配置，**一个字都不用重填**。
-
-**第 2 步 · 正常派活**：
-```
-用 ai-cross：扫描这个项目，实现 XX 功能，做交叉审查
+```text
+用户任务
+  ↓
+盘点模型和通道，生成 manifest
+  ↓
+判断任务类型：扫描 / 实现 / 审查 / 科研分析 / 精确计算
+  ↓
+选择档位和厂商
+  ├─ 日常任务：低成本通道优先
+  ├─ 关键代码：实现后换厂商审查
+  ├─ 科研分析：默认双保险
+  └─ 精确数值：必须写代码或本地复核
+  ↓
+记录 .dispatch 留痕
+  ↓
+汇总共识、分歧、验证项和未验证项
 ```
 
-**第 3 步 · 复查**（可选）：每次派发和每轮 review 的完整过程都存在项目的 `.dispatch/` 目录下，想看哪一路直接打开对应 `.md` 文件。
+## 使用方式
 
-## 派发强度
+在支持 GitHub skill 安装的 agent 里，可以直接发送：
 
-| 强度 | 何时用 | 要求 |
-|---|---|---|
-| **标准**（默认） | 日常 | 无 |
-| **双保险** | 科研分析默认；防幻觉 | ≥2 个不同厂商 |
-| **全力** | 明说"彻底/全面/ultra"才启用 | 烧多份额度，慎用 |
+```text
+请从 GitHub 安装这个 skill，并在需要多模型分工、跨厂商交叉审查或模型派发时优先使用它：
+https://github.com/keros68/ai-cross
+```
+
+安装后，新开窗口或重启 agent，然后先盘点模型：
+
+```text
+使用 $ai-cross 盘点模型
+```
+
+常规调用示例：
+
+```text
+使用 $ai-cross 扫描这个项目，实现 XX 功能，并让不同厂商模型做交叉审查。
+```
+
+### 手动安装
+
+Claude Code：
+
+```text
+skill/ai-cross/  ->  ~/.claude/skills/ai-cross/
+agents/*.md      ->  ~/.claude/agents/
+```
+
+Codex：
+
+```text
+skill/ai-cross/  ->  ~/.codex/skills/ai-cross/
+```
+
+Windows 上 `~` 即 `C:\Users\<用户名>`。装完后新开会话生效。
+
+其他 agent 如果支持 `SKILL.md`，把 `skill/ai-cross/` 放到对应 skills 目录；如果不支持正式 skill loader，可以把 `skill/ai-cross/SKILL.md` 作为项目规则或 agent instruction 使用。
 
 ## 密钥安全
 
-**本地只读、绝不外传、不回显（一律打码）、不写入本 skill 产出的任何文件、不进模型上下文（只注入子进程环境变量）、读凭据库前告知你。**
+ai-cross 的密钥处理规则是：本地只读、不外传、不回显、不写入仓库、不写入留痕文件、不进模型上下文。需要调用外部通道时，密钥只按进程注入给对应子命令。
 
-完整规则见 `skill/ai-cross/references/security.md`——**读一遍就能审计**它对你的 key 做了什么。`cc_switch.py` 把这些做成了代码级保证：token 只在脚本子进程内部读取注入，连编排的 agent 都看不到它。
+完整规则见 [`skill/ai-cross/references/security.md`](skill/ai-cross/references/security.md)。如果使用 cc-switch，ai-cross 通过只读桥接脚本读取已有配置，不要求你把 key 再填一遍。
 
-建议只从可信来源获取本 skill，避免运行被篡改的副本。
+## 设计原则
 
-## 升级阶梯（按实测收益排序，不是按传统 cascade）
+- 交叉验证看厂商独立性，不看 agent 数量。
+- 默认先用低成本通道，验证失败或任务不可机器验证时再升级。
+- 精确数值不交给模型心算；能跑代码就跑代码，不能跑就人工复核。
+- 共识只说明多个模型给出了相同结论，不自动等于证据可靠。
+- 外部派发必须留痕，关键任务要能回看原始输出。
+- review 循环最多三轮；仍有分歧时并列证据交给人裁决。
 
-低档产出没通过验证时，**依次**试：
+## 文件结构
 
-| 顺序 | 动作 | 实测收益 | 代价 |
-|---|---|---|---|
-| ① | 查输入是否送达（多行 prompt 被截断？） | 曾把整套基准误判为 0% | 零 |
-| ② | 改任务框架：让模型写代码，别让它心算 | 33% → 100% | 零 |
-| ③ | 换厂商（失败模式独立） | 修复系统性缺陷 | 一次重派 |
-| ④ | 咨询顾问一次（advisor） | 未被检验 | 2.1× input |
-| ⑤ | 升推理强度 / 升档位 | **零准确率增益** | 约 2× 推理 token |
+- `skill/ai-cross/SKILL.md` - skill 主说明、路由规则、执行闭环和稳健性规则。
+- `skill/ai-cross/references/setup.md` - 模型盘点和接入向导。
+- `skill/ai-cross/references/channels.md` - 各通道命令模板和模型漂移维护。
+- `skill/ai-cross/references/cc_switch.py` - cc-switch 只读桥。
+- `skill/ai-cross/references/verify_model.py` - 模型真身校验脚本。
+- `skill/ai-cross/references/security.md` - 密钥处理规则。
+- `skill/ai-cross/references/dispatch-design.md` - 并行边界和派发设计说明。
+- `skill/ai-cross/references/playbooks.md` - 可选编排方案。
+- `agents/scout.md` - Claude Code 低档只读侦察 agent。
+- `agents/worker.md` - Claude Code 常规执行 agent。
+- `agents/heavy.md` - Claude Code 高档只读审查 agent。
+- `agents/advisor.md` - Claude Code 决策点顾问 agent。
+- `qoder/` - Qoder 适配示例。
 
-**传统 cascade 把 ⑤ 当第一手；我们的数据说它是最后一手。**
+## Attribution and Redistribution
 
-## 设计原则（想改造它的人看）
+This project is the original ai-cross skill by keros68:
 
-- 多模型协作一律走 **CLI 命令派工**，不绑定任何宿主的内部机制
-- 外部通道抽象为"**命令模板 + 模型参数**"：不想用某个 CLI 就换掉模板，其余逻辑不变
-- **模型名会过时**：所有型号集中在 `references/channels.md` 一处，漂了改那里
-- **共识不等于正确**：三个模型可以对同一个结论达成一致，而其中一个的推导是坏的（实测）。可独立验证的量由编排者**亲自跑一遍**，不采信任何模型的自述
-- **先证明尺子是准的**：判定模型失败前，先 dump 出它实际收到的输入
-- review 循环 ≤3 轮；双跑分歧**不仲裁**，并列证据交人裁决
+https://github.com/keros68/ai-cross
 
-## 文件清单
+The project is released under the MIT License. Redistribution, forks, modified versions, and repackaged copies must preserve the copyright notice and license text. Please do not present modified copies as the original project or imply endorsement by the original author.
 
+## English
+
+ai-cross is an AI-agent skill for cross-vendor model review and tiered task dispatch. It routes routine scanning, implementation, and critical review to different model tiers, then uses models from different vendors to check important outputs.
+
+The goal is not automatic majority voting. ai-cross keeps an audit trail, reports agreement and disagreement, and requires independently verifiable facts such as numbers, code behavior, and formatting checks to be validated by tools or humans.
+
+Typical use cases include code review after implementation, research-analysis cross-checking, quota-aware task routing for subscription users, and preserving dispatch logs in `.dispatch/`.
+
+Quick start:
+
+```text
+Install this skill from GitHub and use it for cross-vendor model review and task dispatch:
+https://github.com/keros68/ai-cross
 ```
-README.md                                    本文件
-skill/ai-cross/SKILL.md                核心（通道、门槛、路由表、闭环、稳健性）
-skill/ai-cross/references/setup.md     申报式接入向导 + CLI 安装附录
-skill/ai-cross/references/channels.md  各通道命令模板 + 漂移维护
-skill/ai-cross/references/cc_switch.py cc-switch 只读桥（list / exec）
-skill/ai-cross/references/verify_model.py 模型真身校验器（打端点比对 model 字段，抓静默降级）
-skill/ai-cross/references/security.md  密钥六铁律（可审计）
-skill/ai-cross/references/dispatch-design.md  并行边界/能力判定/框架参照
-skill/ai-cross/references/playbooks.md 编排方案复用（可选）
-agents/scout.md   低档侦察员（Haiku，只读）— 仅 Claude Code
-agents/worker.md  中档执行者（Sonnet）— 仅 Claude Code
-agents/heavy.md   高档审查/架构（Opus high，只读）— 仅 Claude Code
+
+Then restart or open a new agent window and call:
+
+```text
+Use $ai-cross to inventory my available models.
 ```
 
-（`manifest.md` 是你本机的能力清单，盘点时自动生成，不随包分发。）
+## License
+
+MIT. See [LICENSE](LICENSE).
