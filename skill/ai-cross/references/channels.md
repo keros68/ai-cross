@@ -112,10 +112,13 @@ curl -s https://<host>/v1/chat/completions \
   -d '{"model":"<model>","max_tokens":512,
        "messages":[{"role":"user","content":"[任务]"}],
        "enable_thinking":false}'
-# 取 .choices[0].message.content；推理模型 content 可能为空、答案在 .reasoning_content
+# 只取 .choices[0].message.content。
+# ⛔ content 为空时【绝不】回退去读 .reasoning_content —— 那是没写完的思考草稿，不是答案。
+#    content 空 + finish_reason=="length" ⇒ 被截断，应加大 max_tokens 重试，而不是从草稿里抠答案。
 ```
 
-- **`enable_thinking:false`（或各家等价参数）** —— 纯文本任务必加。实测推理模型开着思考纯烧 output：Qwen 抽取任务 512→18 token（28×）、且从错变对。不支持该参数的模型，把 max_tokens 给足（≥512）避免推理没跑完被截断。
+- **`enable_thinking:false`（或各家等价参数）** —— 纯文本任务必加。实测（5 模型均证实该参数真实生效）：推理模型开着思考纯烧 output，Qwen 抽取任务 1159→18 token（**64×**），**正确率无变化**（预算给够时两边都对）。省的是 token，不是错误率。
+- **开着思考时 max_tokens 必须给到关思考时的 50× 以上。** 推理 token 与答案 token **共享同一个输出预算**。同一个 Qwen 抽取任务：关思考 18 token 够用，开思考要 ~1200；给 512 会把思考掐断在半路，`content` 直接为空。`completion == max_tokens` 就是撞顶的指纹。**"≥512 就够"是错的**（本项目曾据此得出错误结论，见 `FINDINGS-thinking-truncation.md`）。
 - **批量合并**：50 条要分类的，拼成一次调用，别发 50 次——固定开销才摊得开。
 - key 用用户级环境变量引用（`$API_KEY`），不落明文；**这是纯按量 API，不是 coding plan**（后者不能这么直连）。
 
