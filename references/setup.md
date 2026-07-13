@@ -26,7 +26,7 @@
 > 请勾选你已有的模型入口（可多选）：
 > ① Claude（Claude Code / Pro / Max 订阅）
 > ② Codex（ChatGPT 订阅）
-> ③ Gemini
+> ③ Gemini（⚠️ 独立 CLI 已下线，2026-07 核实；若未来恢复见 `channels.md`）
 > ④ Qoder（CLI 与 IDE 共享 Credits，算一个源）
 > ⑤ CodeBuddy / WorkBuddy（同账号通用，算一个源）
 > ⑥ 智谱 GLM Coding Plan（订阅制 → 分支 B）
@@ -67,7 +67,7 @@
 |---|---|---|---|
 | claude | `claude --version` | `claude -p --model haiku "只回复OK"` | 不支持，用静态档位表 haiku<sonnet<opus |
 | codex | `codex --version` | `codex exec -m gpt-5.4-mini -c model_reasoning_effort="low" -s read-only --skip-git-repo-check "reply OK"` | 不支持，静态：mini<标准<深度 |
-| gemini | `gemini --version` | `gemini -m gemini-3-flash-preview "只回复OK"` | 不支持，静态表 |
+| gemini | ⚠️ 独立 CLI 已下线（2026-07 核实，见 `channels.md`），跳过验证 | 若未来恢复：先 `gemini --version` 冒烟确认存在再用 | 不支持，静态表 |
 | qoder | `qoder --version` | `qoder -p "只回复OK"`（参数以本地 `qoder --help` 为准） | 静态，`--model` 选档 |
 | codebuddy | `codebuddy --version` | 命令形态以本地 `codebuddy --help` 为准 | 静态表 |
 | hermes | `hermes --version` | `hermes chat -q "只回复OK" -Q` | 以其配置为准，额度归属问用户 |
@@ -125,14 +125,14 @@ clients:
 | 通道 | 模型/档位 | 强项 | 相对成本 | 额度归属 | 冒烟结果 |
 |---|---|---|---|---|---|
 | codex CLI | gpt-5.4-mini(low) | 快速琐事 | 低 | Codex 订阅 | ✅ YYYY-MM-DD |
-| cc_switch→Zhipu GLM | glm-5-turbo / glm-5.1 / glm-5.2[1M] | 实现/分析 | 低/中/高 | GLM Coding Plan | ✅ YYYY-MM-DD |
+| cc_switch→Zhipu GLM | glm-5-turbo / glm-5.2 / glm-5.2[1m] | 实现/分析 | 低/中/高 | GLM Coding Plan | ✅ YYYY-MM-DD |
 | gemini | — | — | — | — | ❌ CLI 未安装 |
 
 ## 厂商 × 档位矩阵(路由查这张表)
 | 厂商 | 低档 | 中档 | 高档 |
 |---|---|---|---|
-| OpenAI(codex) | gpt-5.4-mini | gpt-5.4 | gpt-5.3-codex |
-| 智谱(cc_switch) | glm-5-turbo | glm-5.1 | glm-5.2[1M] |
+| OpenAI(codex) | gpt-5.4-mini | gpt-5.4 | gpt-5.5 |
+| 智谱(cc_switch) | glm-5-turbo | glm-5.2 | glm-5.2[1m] |
 
 ## 源与强度解锁
 独立厂商数:N → 分层省钱 ✅ ｜ 交叉验证(≥2 厂商) ✅/❌ ｜ 全力 ✅/❌
@@ -173,7 +173,7 @@ manifest 只记**可复现的具体缺陷**（如"肉眼计数 33%"、"统计推
 |---|---|---|---|
 | claude | `npm i -g @anthropic-ai/claude-code` | 同左 | 同左 |
 | codex | `npm i -g @openai/codex` | 同左 | 同左 |
-| gemini | `npm i -g @google/gemini-cli` | 同左 | 同左 |
+| gemini | ⚠️ 独立 CLI 已下线（2026-07 核实，见 `channels.md`），不建议安装；若未来恢复再执行 `npm i -g @google/gemini-cli` | — | — |
 | aichat | `winget install sigoden.aichat`（或 `scoop install aichat`） | `brew install aichat` | [releases](https://github.com/sigoden/aichat/releases) 下载二进制入 PATH |
 
 以上为通用形态，**以各家官方文档当前值为准**；安装前先跑 `<cli> --version` 确认是否已装。装完让用户自行完成 OAuth 登录（agent 代替不了）。

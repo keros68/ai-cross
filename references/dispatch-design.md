@@ -43,7 +43,7 @@ CLI 基本**不支持枚举**：claude/codex/gemini 均无 list-models（`codex 
 |---|---|---|---|
 | Claude | haiku | sonnet | opus |
 | Codex | gpt-mini | gpt-标准 | gpt-深度 |
-| GLM | glm-5-turbo | glm-5.1 | glm-5.2[1M] |
+| GLM | glm-5-turbo | glm-5.2 | glm-5.2[1m] |
 | … | | | |
 
 选择只剩三步，每步都小：
