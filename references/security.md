@@ -19,7 +19,7 @@
 
 ## 代码级落实
 
-`references/cc_switch.py` 是铁律的代码化：
+`cc_switch.py` 是铁律的代码化：
 
 - `list` 模式输出 provider 清单，**token 字段从不输出**，只给 `has_token` 布尔。
 - `exec` 模式在**脚本子进程内部**读取 token 并注入 `subprocess` 的 env，token 从不打印、从不回到调用它的 agent 的上下文。

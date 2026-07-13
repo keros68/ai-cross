@@ -85,7 +85,7 @@
 1. 确认本机有 claude CLI，没有则先装（**免费；装了不等于要买 Claude 订阅**，第三方端点用 env 覆写认证）。
 2. 引导用户到对应控制台创建 API key（智谱：开放平台 → 个人编程套餐 → 套餐概览建 key；Kimi：Kimi Code 控制台）。此 key 与 zcode/ZCode 桌面用的是同一个、同一份订阅额度池，直连端点即可，无需装桌面。
 3. key 存为用户级环境变量，不落明文：Windows `setx GLM_CODING_KEY <key>`（Kimi 同理），类 Unix 写入 shell profile。**若 key 已在 cc-switch 里，直接用 `cc_switch.py exec`，跳过本步。**
-4. 用 `references/channels.md` 的 coding plan 模板冒烟。
+4. 用 `channels.md` 的 coding plan 模板冒烟。
 5. 记入 manifest，额度归属为对应 coding plan，算独立源。
 
 ### 分支 C：按量 API（aichat，最后的兜底）
