@@ -80,7 +80,7 @@ python <本skill目录>/references/usage_probe.py --days 30
 | CLI | 存在检测 | 冒烟（最便宜档） | 模型枚举 |
 |---|---|---|---|
 | claude | `claude --version` | `claude -p --model haiku "只回复OK"` | 不支持，用静态档位表 haiku<sonnet<opus |
-| codex | `codex --version` | `codex exec -m gpt-5.4-mini -c model_reasoning_effort="low" -s read-only --skip-git-repo-check "reply OK"` | 不支持，静态：mini<标准<深度 |
+| codex | `codex --version` | `codex exec -m gpt-5.6-luna -c model_reasoning_effort="low" -s read-only --skip-git-repo-check "reply OK"` | **本地枚举**：读 `~/.codex/models_cache.json`（CLI 缓存的官方清单，含描述/efforts/priority），别手抄 |
 | kimi | `kimi --version`（Windows 装完不进 PATH，全路径 `~/.kimi-code/bin/kimi.exe`） | `kimi -p "只回复OK" -m kimi-code/kimi-for-coding-highspeed` | **本地枚举**：读 `~/.kimi-code/config.toml` 的 `[models]` 段（含上下文/effort），别手抄 |
 | gemini | ⚠️ 独立 CLI 已下线（2026-07 核实，见 `channels.md`），跳过验证 | 若未来恢复：先 `gemini --version` 冒烟确认存在再用 | 不支持，静态表 |
 | qoder | `qoder --version` | `qoder -p "只回复OK"`（参数以本地 `qoder --help` 为准） | 静态，`--model` 选档 |

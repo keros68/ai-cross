@@ -5,28 +5,31 @@
 ## Codex 三档
 
 ```bash
-# 低档：快速琐事
-codex exec -m gpt-5.4-mini -c model_reasoning_effort="low" -s read-only \
+# 低档：快速琐事（gpt-5.6-luna = fast and affordable）
+codex exec -m gpt-5.6-luna -c model_reasoning_effort="low" -s read-only \
   --skip-git-repo-check "[任务]" 2>/dev/null
 
-# 中档：常规第二意见
-codex exec -m gpt-5.4 -c model_reasoning_effort="medium" -s read-only \
+# 中档：常规第二意见（gpt-5.6-terra = balanced everyday）
+codex exec -m gpt-5.6-terra -c model_reasoning_effort="medium" -s read-only \
   --skip-git-repo-check "[任务]" 2>/dev/null
 
-# 高档：深度分析/关键审查
-codex exec -m gpt-5.5 -c model_reasoning_effort="xhigh" -s read-only \
+# 高档：深度分析/关键审查（gpt-5.6-sol = latest frontier，effort 支持到 max/ultra）
+codex exec -m gpt-5.6-sol -c model_reasoning_effort="xhigh" -s read-only \
   --skip-git-repo-check "[任务]" 2>/dev/null
 
-# 代码特化档（可选）
+# 代码特化档（可选，ultra-fast）
 codex exec -m gpt-5.3-codex-spark -c model_reasoning_effort="high" -s read-only \
   --skip-git-repo-check "[任务]" 2>/dev/null
 
 # 长文本走 stdin（会作为 <stdin> 块附加到 prompt 后）
-cat file.txt | codex exec -m gpt-5.4 -c model_reasoning_effort="medium" -s read-only \
+cat file.txt | codex exec -m gpt-5.6-terra -c model_reasoning_effort="medium" -s read-only \
   --skip-git-repo-check "总结要点" 2>/dev/null
 ```
 
+- **档位映射（2026-07-17 冒烟 5/5 全 OK）**：gpt-5.6 代三档 luna(低)/terra(中)/sol(高)按官方描述定档；上一代 `gpt-5.4-mini`/`gpt-5.4`/`gpt-5.5`/`gpt-5.3-codex-spark` 仍在售仍可用（用量日志漂移预警 → 冒烟确认的完整闭环首例）。
+- **本地事实源：`~/.codex/models_cache.json`**——CLI 自己缓存的官方模型清单（slug/描述/默认与可用 effort/priority/`fetched_at`）。此前"codex 不支持枚举、用静态表"的说法**作废**：接入与刷新读这个文件，别手抄本文件里的 ID。
 - **Codex 支持 stdin 管道**（实测 2026-07-08：`echo "1,2,3" | codex exec ... "求和"` → 正确返回）。`--help` 明载：stdin 被 pipe 时作为 `<stdin>` 块附加；prompt 用 `-` 亦可全部从 stdin 读。
+- **⚠️ 后台/无 TTY 运行必须给 stdin EOF**（2026-07-17 实测）：正因为上一条，`codex exec` 见到非 TTY 的 stdin 会**一直等它关闭**；后台任务的 stdin 是永不关闭的管道 → 永久挂起（实测 4 连发挂 25 分钟零输出零报错）。前台交互（stdin=TTY）无此问题。脚本/后台里写法：PowerShell `'' | codex exec …`，POSIX `codex exec … < /dev/null`。
 - 推理强度旋钮：`-c model_reasoning_effort="low|medium|high|xhigh"`。
 - 不要用 `--full-auto`：当前 `codex exec --help` 已不列出该参数（虽仍被接受，属未文档化遗留别名，随时可能移除）。`-s read-only` 已够。
 - **`gpt-5.3-codex` 不存在**（实测 2026-07-08：ChatGPT 账号报 `The 'gpt-5.3-codex' model is not supported when using Codex with a ChatGPT account`）。ChatGPT 订阅可用型号实测为：`gpt-5.4-mini` / `gpt-5.4` / `gpt-5.5` / `gpt-5.3-codex-spark`。**这是"未冒烟就别假设可用"的活教材**——该型号曾被本文件当作高档默认，直到实测才发现全线不可用。
