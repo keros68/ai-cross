@@ -31,12 +31,32 @@ cat file.txt | codex exec -m gpt-5.4 -c model_reasoning_effort="medium" -s read-
 - 不要用 `--full-auto`：当前 `codex exec --help` 已不列出该参数（虽仍被接受，属未文档化遗留别名，随时可能移除）。`-s read-only` 已够。
 - **`gpt-5.3-codex` 不存在**（实测 2026-07-08：ChatGPT 账号报 `The 'gpt-5.3-codex' model is not supported when using Codex with a ChatGPT account`）。ChatGPT 订阅可用型号实测为：`gpt-5.4-mini` / `gpt-5.4` / `gpt-5.5` / `gpt-5.3-codex-spark`。**这是"未冒烟就别假设可用"的活教材**——该型号曾被本文件当作高档默认，直到实测才发现全线不可用。
 
+## Kimi Code CLI（kimi，外部 agent CLI）
+
+Moonshot 官方 agent CLI，OAuth 登录（`kimi login` 设备码流程），**无需 API key**——没配 `KIMI_CODING_KEY` 时这是唯一的 Kimi 通道。**Windows 实测（0.26.0，2026-07-17）装完不进 PATH**，二进制在 `~/.kimi-code/bin/kimi.exe`：模板用全路径，或让用户把该目录加进 PATH。
+
+```bash
+# 高档：K3（1M 上下文；effort low/high/max，默认 max，旋钮在 config.toml 无命令行参数）
+kimi -p "[任务]" -m kimi-code/k3
+
+# 低档：快速琐事
+kimi -p "[任务]" -m kimi-code/kimi-for-coding-highspeed
+
+# 冒烟
+kimi --version && kimi -p "只回复OK" -m kimi-code/kimi-for-coding-highspeed
+```
+
+- **模型别名不要手抄，读本地事实源**：`~/.kimi-code/config.toml` 的 `[models."…"]` 段完整列出当前可用别名、真实模型 ID、上下文长度、effort 支持——派发前读它，别依赖本文件记的值。本机 2026-07-17 实测三个：`kimi-code/k3`（1M，efforts low/high/max）、`kimi-code/kimi-for-coding`（K2.7，256k）、`kimi-code/kimi-for-coding-highspeed`（K2.7 高速）。
+- **⚠️ 无只读档（0.26.0 实测）**：`-p` 模式**不加 `-y` 也默认可写盘**（实测让它建文件，直接 Write 成功落盘）；`--plan` 与 `-p` 互斥（`error: Cannot combine --prompt with --plan`）；`--help` 无 tools 白名单参数。护栏只剩**工作目录隔离**：每次派发在专用空目录里跑（审查材料拷进去），**绝不在宿主项目目录里跑 kimi 并发派发**。需要硬只读护栏的咨询/审查任务，优先走 `claude -p --tools Read,Grep,Glob` + Kimi 端点覆写（下方 coding plan 通道，需 API key）。
+- 输出混有 thinking 行（stderr）与 `To resume this session` 提示；程序化消费用 `--output-format stream-json` 解析，别整段当答案。
+- 定位：**执行者通道**（本来就要写盘的活，在隔离目录里跑没问题）+ 无 API key 时的 Kimi 兜底。作为跨厂商验证者用时，记住上一条的目录隔离。
+
 ## ⚠️ 已停用/不适用的通道（2026-07 核实，勿再假设可用）
 
 - **gemini / qoder / codebuddy CLI**：这些产品的独立 CLI **已下线**（用户 2026-07 核实）。曾经的命令模板（`gemini -m …` / `qoder -p …` / `codebuddy …`）**不再有效**，别再照抄。若将来它们恢复 CLI，先 `<cli> --version` 冒烟确认存在再用。
 - **Hermes**：`hermes chat -q "…" -Q`（跨供应商路由壳）——需单独部署，多数场景不划算（多一层壳、多一层折损）。仅当用户已在某机器上部署好、且明确要用时才走。
 
-结论：**当前实测可用的外部通道就是 `codex exec` + coding plan（claude -p + 端点覆写）+ cc_switch 桥 + 裸 API/aichat**。上面这些是历史遗留，保留仅为说明"命令模板+模型参数"抽象可随时接新 CLI。
+结论：**当前实测可用的外部通道就是 `codex exec` + `kimi`（Kimi Code CLI）+ coding plan（claude -p + 端点覆写）+ cc_switch 桥 + 裸 API/aichat**。上面这些是历史遗留，保留仅为说明"命令模板+模型参数"抽象可随时接新 CLI。
 
 ## coding plan（GLM / Kimi 等，载体为 claude CLI）
 
@@ -65,7 +85,8 @@ ANTHROPIC_BASE_URL=https://open.bigmodel.cn/api/anthropic ANTHROPIC_AUTH_TOKEN=$
 ANTHROPIC_BASE_URL=https://open.bigmodel.cn/api/anthropic ANTHROPIC_AUTH_TOKEN=$GLM_CODING_KEY \
   claude -p --model "glm-5.2[1m]" "[任务]"    # 硬活/长上下文（1M），常规硬活用 glm-5.2 即可
 
-# Kimi Code（模型 ID 统一 kimi-for-coding）
+# Kimi Code（需控制台建的 API key；只有 OAuth 订阅时走上方 kimi CLI 通道）
+# 端点在售模型 ID 以官方文档为准（K3 上线后是否开放此端点、ID 为何未核实——接入时必过 verify_model 真身核对）
 ANTHROPIC_BASE_URL=https://api.kimi.com/coding/ ANTHROPIC_API_KEY=$KIMI_CODING_KEY \
   claude -p --model kimi-for-coding "[任务]"
 ```
@@ -154,5 +175,11 @@ cat file.txt | aichat -m <provider>:<model> "总结要点"   # 长文本走 stdi
   - 这个 bug 曾让一整套高难度基准误判为"codex 全线 0%"，而单行 prompt 的简单基准却全 100%——差点被错误归因为"目标 CLI 的技能污染"。**判定模型失败前，先确认它到底收到了什么。**
 
 **CLI 二进制版本**：记录版本号、**不自动升级**（升级可能带破坏性变更）；仅冒烟失败且疑似过旧时才向用户建议升级命令。
+
+**本地有事实源的值不手抄**：kimi 的 `~/.kimi-code/config.toml [models]` 段、cc-switch 的档位→模型映射（`cc_switch.py list`）、aichat 的 `--list-models`、`~/.claude/settings.json` / `~/.codex/config.toml` 的用户偏好——这些派发前**运行时读**，本文件与 manifest 只记"去哪读"和实测结论，不当值的权威来源。值不会过期，因为根本不存。
+
+**过期检测（TTL + 冒烟）**：manifest 每行的冒烟日期就是新鲜度。派发前扫一眼：目标通道条目**超过 30 天**未验证 → 先跑该档最便宜冒烟；第三方 Anthropic 兼容端点还必须过 `verify_model.py` 真身核对（防静默降级），通过后刷新 manifest 日期再派。失败才进入上面的漂移处理流程。原则：**自动化的是"发现过期"，改配置必须用户确认**——端点会谎报（静默降级实测在案），唯一可信的更新依据是冒烟，自动改写配置只会把谎报固化进配置。
+
+**免费续期与漂移预警（usage_probe）**：`python <本skill目录>/references/usage_probe.py --days 30` 聚合本机各 CLI 用量日志（只出元数据）。两个用法：①**官方 CLI** 条目若在近 7 天日志里成功出现过，可视作新鲜、免冒烟续期（claude 日志的 model 是响应侧值；第三方端点仍必须 verify_model）；②日志里出现了 manifest/本文件**没有**的模型 ID（如 CLI 升级换了默认模型），就是漂移信号——冒烟确认后走"更新模型清单"流程。实测首跑即抓到 codex 主用模型已从 gpt-5.5 代漂移到 gpt-5.6 代（2026-07-17）。
 
 **用户说「更新模型 / 升级清单」**：重跑盘点流程（`setup.md`）+ 逐 CLI 核对当前模型 ID（能枚举的枚举、不能的查文档或问用户）+ 刷新本文件与 manifest.md 的 ID 和日期。

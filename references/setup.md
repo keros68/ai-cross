@@ -30,7 +30,7 @@
 > ④ Qoder（CLI 与 IDE 共享 Credits，算一个源）
 > ⑤ CodeBuddy / WorkBuddy（同账号通用，算一个源）
 > ⑥ 智谱 GLM Coding Plan（订阅制 → 分支 B）
-> ⑦ Kimi 会员 / Kimi Code（订阅制 → 分支 B）
+> ⑦ Kimi 会员 / Kimi Code（订阅制：装了 kimi CLI（OAuth）→ 分支 A；有控制台 API key → 分支 B）
 > ⑧ 按量 API（DeepSeek / OpenRouter / 其他 → 分支 C）
 > ⑨ 其他 agent 或模型（请说明名字）
 
@@ -57,6 +57,20 @@
 - **铁律**：只读，绝不修改其 db；**绝不采用它的"切换"机制**（它靠把当前供应商写进 `~/.claude/settings.json` 来切换、一次只激活一个，正是要避开的全局污染）。我们的价值恰是把它存的多个供应商用**按进程环境变量并发跑起来**。提取到的 key 只在派发时按进程注入，manifest 只记"来源=cc-switch / 是否可自动提取"。
 - 把读到的列表拿给用户勾选要纳入的，再写 manifest。
 
+### 可选：从用量痕迹预填（usage_probe，第三类信息源）
+
+申报（用户说的）、配置（cc-switch/config.toml，用户配过的）之外的第三类：**使用痕迹**（实际发生过的调用）。运行随附只读桥：
+
+```
+python <本skill目录>/references/usage_probe.py --days 30
+```
+
+输出聚合 JSON：每个 (来源 CLI, 模型) 的调用次数与首末时间、已知 CLI 数据目录的存在性与最近活动。**只出元数据，对话内容一律不读不输出。**用法：
+
+- **发现**：`installs` 里存在且近期活跃、但用户没申报过的 CLI → 提示用户确认是否纳入（**不自动纳入**，申报制不破）。
+- **预填**：`usage` 里近期高频的模型 ID 就是"用户实际在用的"，直接当申报候选拿去勾选。
+- **信任边界**：模型字段多为**请求值**，不代表服务端真身——第三方端点仍必须过 `verify_model.py`；日志只证明"用过"，不证明"现在可用"。
+
 ## 第 2 步 — 逐项验证（只验证勾选项）
 
 ### 分支 A：官方 agent CLI
@@ -67,6 +81,7 @@
 |---|---|---|---|
 | claude | `claude --version` | `claude -p --model haiku "只回复OK"` | 不支持，用静态档位表 haiku<sonnet<opus |
 | codex | `codex --version` | `codex exec -m gpt-5.4-mini -c model_reasoning_effort="low" -s read-only --skip-git-repo-check "reply OK"` | 不支持，静态：mini<标准<深度 |
+| kimi | `kimi --version`（Windows 装完不进 PATH，全路径 `~/.kimi-code/bin/kimi.exe`） | `kimi -p "只回复OK" -m kimi-code/kimi-for-coding-highspeed` | **本地枚举**：读 `~/.kimi-code/config.toml` 的 `[models]` 段（含上下文/effort），别手抄 |
 | gemini | ⚠️ 独立 CLI 已下线（2026-07 核实，见 `channels.md`），跳过验证 | 若未来恢复：先 `gemini --version` 冒烟确认存在再用 | 不支持，静态表 |
 | qoder | `qoder --version` | `qoder -p "只回复OK"`（参数以本地 `qoder --help` 为准） | 静态，`--model` 选档 |
 | codebuddy | `codebuddy --version` | 命令形态以本地 `codebuddy --help` 为准 | 静态表 |
