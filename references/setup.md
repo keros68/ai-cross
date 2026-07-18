@@ -1,40 +1,39 @@
-# 接入与盘点向导（申报制）
+# 接入与盘点向导（探测先行，申报兜底）
 
-面向不会安装配置的新人。逐步执行，每步失败就停下报错，不要跳步、不要盲扫本机。
+面向不会安装配置的新人。逐步执行，每步失败就停下报错，不要跳步。
+
+**"不盲扫本机" ≠ 什么都不看**：它指的是不读密钥文件、不凭猜测翻目录。第 1 步的四类只读探测是随附工具、安全边界明确（白名单见 `security.md`），**必须先跑**——新人答不上"我有哪些订阅"，探测就是替他回答这个问题的。盘点阶段只需读本文件；`channels.md` 的命令模板到逐项验证时才按通道查阅，不要预先全读。
 
 ## 第 0 步 — 识别宿主
 
 判断当前跑在哪个 agent 里。**宿主自己不算外部通道。**
 
 - 宿主是 **Claude Code**：内部 subagent 三档可用；claude CLI 仍可作 coding plan 载体（分支 B）。
-- 宿主是 **Codex / WorkBuddy / Qoder / 其他**：**无内部通道**，全部走外部命令。盘点阶段第一个实际动作是**询问用户已有订阅/API**，不要尝试内部派发。
+- 宿主是 **Codex / WorkBuddy / Qoder / 其他**：**无内部通道**，全部走外部命令。盘点阶段第一个实际动作是**第 1 步的只读探测**（不是提问），不要尝试内部派发。
 
 **壳 ≠ 模型**：zcode(ZCode)、Qoder 桌面、Hermes、OpenClaw、WorkBuddy 这类是 harness/壳，不是可派发的模型。派发目标永远是**模型**，经三种方式之一触达：①官方 CLI（claude/codex/gemini/qoder）②Anthropic/OpenAI 兼容端点（GLM/Kimi/DeepSeek）③按量 API。用户报"我有 zcode/z.ai"时，其底层模型是 GLM，走分支 B 直连智谱端点，**不需要装它的桌面，也不需要经过任何路由壳**。只有桌面 GUI、无 CLI 也无 API 的工具无法被任何方式派发（路由壳也救不了——它自己也得靠 API 触达模型）。
 
-## 第 1 步 — 申报
+## 第 1 步 — 只读探测（先做，不等用户回答）
 
-用当前宿主的交互提问机制让用户勾选自己拥有的订阅/API：
+新人往往答不上"我有哪些订阅"，所以**探测先行、申报兜底**：先把下面四类只读探测跑完，拿到事实再提问。**绝不允许空着检测结果直接反问用户"你有哪些订阅"**——那是把盘点的工作推回给最回答不了它的人。
 
-| 宿主 | 提问机制 |
-|---|---|
-| Claude Code | `AskUserQuestion`（支持多选） |
-| Codex | `request_user_input`；不可用时退化为逐条文本提问 |
-| 其他 | 逐条文本提问 |
+**这些动作是"探测"，不是"盲扫"，默认直接执行**：在同一条消息里告知用户"正在只读检测本机模型入口"即满足知情原则（白名单见 `security.md`），无需停下等许可。它们不登录、不发模型请求、不读密钥明文、零费用。
 
-**推荐提问模板**（可直接复用）：
+1. **CLI 存在检测**（只跑 `--version`，不存在就跳过，报错不算失败）：
+   `claude --version`、`codex --version`、`kimi --version`、`qoder --version`、`aichat --version`、`codebuddy --version`、`hermes --version`。kimi 在 Windows 装完可能不进 PATH，补试全路径 `~/.kimi-code/bin/kimi.exe`。
+2. **cc-switch 只读桥**（`~/.cc-switch/cc-switch.db` 存在才跑）：
+   ```
+   python <本skill目录>/references/cc_switch.py list
+   ```
+   Windows 上若 `python` 不存在，改用 `py -3 <...>/cc_switch.py list`。**无 python / 读不到 / schema 对不上 → 跳过这项，不阻塞。**细节与铁律见下方专节。
+3. **用量痕迹**（发现"装了但用户没说"的入口）：
+   ```
+   python <本skill目录>/references/usage_probe.py --days 30
+   ```
+4. **当前模型偏好**（只读配置里的模型字段，不读 key 字段）：
+   `~/.claude/settings.json` 的 `model`、`~/.codex/config.toml` 的 `model` / `model_reasoning_effort`、`~/.kimi-code/config.toml` 的 `[models]` 段；codex 官方模型清单缓存 `~/.codex/models_cache.json`。**字段缺失时只记录版本与可用性，不推断。**
 
-> 请勾选你已有的模型入口（可多选）：
-> ① Claude（Claude Code / Pro / Max 订阅）
-> ② Codex（ChatGPT 订阅）
-> ③ Gemini（⚠️ 独立 CLI 已下线，2026-07 核实；若未来恢复见 `channels.md`）
-> ④ Qoder（CLI 与 IDE 共享 Credits，算一个源）
-> ⑤ CodeBuddy / WorkBuddy（同账号通用，算一个源）
-> ⑥ 智谱 GLM Coding Plan（订阅制 → 分支 B）
-> ⑦ Kimi 会员 / Kimi Code（订阅制：装了 kimi CLI（OAuth）→ 分支 A；有控制台 API key → 分支 B）
-> ⑧ 按量 API（DeepSeek / OpenRouter / 其他 → 分支 C）
-> ⑨ 其他 agent 或模型（请说明名字）
-
-### 可选：从 cc-switch 预填（本机已装时优先，用户零重输）
+### cc-switch 只读桥：细节与铁律
 
 很多多模型用户用 [cc-switch](https://github.com/farion1231/cc-switch) 管配置。它把用户**手动添加**的各 CLI 供应商存在 `~/.cc-switch/cc-switch.db`（SQLite）。注意：这是用户申报过的清单，不是探测结果——信任级别同申报，好处是免重输。
 
@@ -57,7 +56,7 @@
 - **铁律**：只读，绝不修改其 db；**绝不采用它的"切换"机制**（它靠把当前供应商写进 `~/.claude/settings.json` 来切换、一次只激活一个，正是要避开的全局污染）。我们的价值恰是把它存的多个供应商用**按进程环境变量并发跑起来**。提取到的 key 只在派发时按进程注入，manifest 只记"来源=cc-switch / 是否可自动提取"。
 - 把读到的列表拿给用户勾选要纳入的，再写 manifest。
 
-### 可选：从用量痕迹预填（usage_probe，第三类信息源）
+### usage_probe：用量痕迹的用法与信任边界
 
 申报（用户说的）、配置（cc-switch/config.toml，用户配过的）之外的第三类：**使用痕迹**（实际发生过的调用）。运行随附只读桥：
 
@@ -71,7 +70,44 @@ python <本skill目录>/references/usage_probe.py --days 30
 - **预填**：`usage` 里近期高频的模型 ID 就是"用户实际在用的"，直接当申报候选拿去勾选。
 - **信任边界**：模型字段多为**请求值**，不代表服务端真身——第三方端点仍必须过 `verify_model.py`；日志只证明"用过"，不证明"现在可用"。
 
-## 第 2 步 — 逐项验证（只验证勾选项）
+## 第 2 步 — 一次性确认（只问一次）
+
+把探测结果摆成一张表，用当前宿主的交互提问机制**一次问完两件事**：
+
+| 宿主 | 提问机制 |
+|---|---|
+| Claude Code | `AskUserQuestion`（支持多选） |
+| Codex | `request_user_input`；不可用时退化为逐条文本提问 |
+| 其他 | 逐条文本提问 |
+
+**推荐提问模板**（按实际检测结果改写）：
+
+> 我在你机器上只读检测到这些模型入口（没有读取或显示任何密钥）：
+> - ✅ 已装：codex CLI vX.Y（当前模型 gpt-x）；cc-switch 有 N 个供应商（M 个已存 key）：Zhipu GLM、StepFun…
+> - ❓ 已装但状态待确认（未登录 / 长期未用）：…
+> - ❌ 未装：claude / kimi / aichat…
+>
+> ① 以上哪些要纳入盘点？（默认全选；用量痕迹新发现的入口单独列出、不自动纳入）
+> ② 还有没有探测不到的入口？（网页版订阅、按量 API key——DeepSeek / OpenRouter / GLM Coding Plan 等）
+
+**确认之后才有动作**：冒烟是真实的（订阅内）调用；代为安装 CLI、写配置、读含 key 的字段，都必须等用户点头。
+
+### 兜底：探测全失败才退回纯申报
+
+全新机器（无 python、无任何 CLI、无 cc-switch）时用下表逐条问：
+
+> 请勾选你已有的模型入口（可多选）：
+> ① Claude（Claude Code / Pro / Max 订阅）
+> ② Codex（ChatGPT 订阅）
+> ③ Gemini（⚠️ 独立 CLI 已下线，2026-07 核实；若未来恢复见 `channels.md`）
+> ④ Qoder（CLI 与 IDE 共享 Credits，算一个源）
+> ⑤ CodeBuddy / WorkBuddy（同账号通用，算一个源）
+> ⑥ 智谱 GLM Coding Plan（订阅制 → 分支 B）
+> ⑦ Kimi 会员 / Kimi Code（订阅制：装了 kimi CLI（OAuth）→ 分支 A；有控制台 API key → 分支 B）
+> ⑧ 按量 API（DeepSeek / OpenRouter / 其他 → 分支 C）
+> ⑨ 其他 agent 或模型（请说明名字）
+
+## 第 3 步 — 逐项验证（只验证勾选项）
 
 ### 分支 A：官方 agent CLI
 
@@ -129,7 +165,7 @@ clients:
 
 5. **冒烟**：`aichat -m <name>:<model_id> "只回复两个字：正常"`。已配置的全部模型可用 `aichat --list-models` 枚举。
 
-## 第 3 步 — 写 manifest
+## 第 4 步 — 写 manifest
 
 写入本 skill 目录下 `manifest.md`，带盘点日期。**复制同目录现成 `manifest.md` 的表头填写**；若不存在，用此最小模板：
 
@@ -176,7 +212,7 @@ manifest 只记**可复现的具体缺陷**（如"肉眼计数 33%"、"统计推
 
 **判定"它不会算"之前，先排除传参问题**：多行 prompt 经 argv 传给 `codex exec` 会在首个换行截断（见 `channels.md`）。**先确认它收到了完整题目。**
 
-## 第 4 步 — 报告
+## 第 5 步 — 报告
 
 告知用户：清单写在哪、有几个厂商、解锁了什么强度、路由表中哪些任务会走哪些通道、哪些通道未冒烟需首次派发前先测。
 

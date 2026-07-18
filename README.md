@@ -81,6 +81,15 @@ https://github.com/keros68/ai-cross
 使用 $ai-cross 盘点模型
 ```
 
+第一次盘点会自动做这些事（全程只读，不读取也不显示任何密钥）：
+
+1. 检测本机已装的 agent CLI（只跑 `--version`，不登录、不发模型请求）；
+2. 若装了 cc-switch，只读其供应商清单（token 不输出，只有"是否已存 key"）；
+3. 聚合各 CLI 的用量元数据，找出"装了但你没说"的入口；
+4. 把检测到的入口摆成一张表请你**一次确认**，然后逐项冒烟，生成 `manifest.md`。
+
+你要做的只有一件事：勾选要纳入的入口。全新机器什么都检测不到时，它会列出可选入口和对应安装命令。
+
 常规调用示例：
 
 ```text
@@ -167,6 +176,8 @@ Then restart or open a new agent window and call:
 ```text
 Use $ai-cross to inventory my available models.
 ```
+
+First run auto-detects installed agent CLIs and cc-switch providers (read-only, keys are never read aloud or shown), asks you to confirm once, then smoke-tests and writes `manifest.md`. On a blank machine it falls back to asking what you have, with install commands.
 
 ## License
 
