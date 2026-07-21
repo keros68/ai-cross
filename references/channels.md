@@ -35,7 +35,8 @@ cat file.txt | codex exec -m gpt-5.6-terra -c model_reasoning_effort="medium" -s
 Moonshot 官方 agent CLI，OAuth 登录（`kimi login` 设备码流程），**无需 API key**——没配 `KIMI_CODING_KEY` 时这是唯一的 Kimi 通道。**Windows 实测（0.26.0，2026-07-17）装完不进 PATH**，二进制在 `~/.kimi-code/bin/kimi.exe`：模板用全路径，或让用户把该目录加进 PATH。
 
 ```bash
-# 高档：K3（1M 上下文；effort low/high/max，默认 max，旋钮在 config.toml 无命令行参数）
+# 高档：K3（1M 上下文；effort low/high/max，默认 max，旋钮在 config.toml 无命令行参数
+#       ——即 thinking 档位无法按次派发切换，路由时把 kimi 视为固定档通道）
 kimi -p "[任务]" -m kimi-code/k3
 
 # 低档：快速琐事
@@ -52,7 +53,7 @@ kimi --version && kimi -p "只回复OK" -m kimi-code/kimi-for-coding-highspeed
 
 ## ⚠️ 已停用/不适用的通道（2026-07 核实，勿再假设可用）
 
-- **gemini / qoder / codebuddy CLI**：这些产品的独立 CLI **已下线**（用户 2026-07 核实）。曾经的命令模板（`gemini -m …` / `qoder -p …` / `codebuddy …`）**不再有效**，别再照抄。若将来它们恢复 CLI，先 `<cli> --version` 冒烟确认存在再用。
+- **gemini / qoder / codebuddy CLI**：这些产品的独立 CLI **已下线**（用户 2026-07 核实）。曾经的命令模板（`gemini -m …` / `qoder -p …` / `codebuddy …`）**不再有效**，别再照抄。若将来它们恢复 CLI，先 `<cli> --version` 冒烟确认存在再用。**注意区分**：下线的是 Qoder 作为**被派发通道**的 CLI；Qoder 作为**宿主**（在 Qoder 里装本 skill）仍受支持，适配见仓库 `qoder/` 目录。
 - **Hermes**：`hermes chat -q "…" -Q`（跨供应商路由壳）——需单独部署，多数场景不划算（多一层壳、多一层折损）。仅当用户已在某机器上部署好、且明确要用时才走。
 
 结论：**当前实测可用的外部通道就是 `codex exec` + `kimi`（Kimi Code CLI）+ coding plan（claude -p + 端点覆写）+ cc_switch 桥 + 裸 API/aichat**。上面这些是历史遗留，保留仅为说明"命令模板+模型参数"抽象可随时接新 CLI。
@@ -123,7 +124,7 @@ echo "[任务]" | claude -p --model X --tools ""
 
 ## 纯文本任务：裸 API 直调（最省，地板 ~11 token）
 
-纯文本任务（分类/摘要/翻译/抽取/自包含问答，**不需要工具**）**不该走 harness**，主 agent 直接打 OpenAI 兼容端点即可——无系统提示、无工具定义，input 地板实测 **11 token**（对比 `claude -p` ~30k）。
+纯文本任务（分类/摘要/翻译/抽取/自包含问答，**不需要工具**）**不该走 harness**，主 agent 直接打端点即可——无系统提示、无工具定义，input 地板实测 **11 token**（对比 `claude -p` ~30k）。下面示例是 **OpenAI 兼容格式**（`/v1/chat/completions`）；Anthropic 协议端点走 `/v1/messages`，请求体格式不同（`max_tokens` 必填、消息结构不同），别混用同一模板。
 
 ```bash
 # OpenAI 兼容端点（DeepSeek/硅基流动/OpenRouter 等）
@@ -171,7 +172,7 @@ cat file.txt | aichat -m <provider>:<model> "总结要点"   # 长文本走 stdi
 **模型 ID 漂移**（模型在迭代，如 glm-4.6→GLM-4.7→GLM-5.2、gpt-5.4→5.5）：
 - **权威来源分两类**：有本地事实源的（codex `models_cache.json`、kimi `config.toml`、cc-switch 映射、aichat `--list-models`）**运行时读，本文件只记"去哪读"**；没有事实源的（如 coding plan 端点在售 ID）才把值记在本文件。本文件模板里出现的具体 ID 都是**示例快照**，以事实源/官方文档当前值为准。漂了改这里即可，skill 其余逻辑不动。
 - 派发命中"unknown model / 模型不存在"类错误：先去掉 `-m`/`--model` 用该 CLI **默认模型**重试（默认通常跟随当前版），再提示用户更新本文件对应行。
-- 支持枚举的 CLI（`aichat --list-models`）以枚举为准；不支持的（claude/codex/gemini）以各家官方文档当前型号为准。
+- 支持枚举/有本地缓存的以其为准（`aichat --list-models`、codex 的 `~/.codex/models_cache.json`、kimi 的 `config.toml`）；都没有的（claude/gemini）以各家官方文档当前型号为准。
 
 **CLI 参数漂移**（命令行参数被改名/移除，如本文件曾误用已下线的 `--full-auto`）：
 - 命中 `unrecognized arguments` / `unknown option` / `error: unexpected argument` 类错误时：
