@@ -7,25 +7,21 @@
 ```bash
 # 低档：快速琐事（gpt-5.6-luna = fast and affordable）
 codex exec -m gpt-5.6-luna -c model_reasoning_effort="low" -s read-only \
-  --skip-git-repo-check "[任务]" 2>/dev/null
-
+  --skip-git-repo-check "[任务]"
 # 中档：常规第二意见（gpt-5.6-terra = balanced everyday）
 codex exec -m gpt-5.6-terra -c model_reasoning_effort="medium" -s read-only \
-  --skip-git-repo-check "[任务]" 2>/dev/null
-
+  --skip-git-repo-check "[任务]"
 # 高档：深度分析/关键审查（gpt-5.6-sol = latest frontier，effort 支持到 max/ultra）
 codex exec -m gpt-5.6-sol -c model_reasoning_effort="xhigh" -s read-only \
-  --skip-git-repo-check "[任务]" 2>/dev/null
-
+  --skip-git-repo-check "[任务]"
 # 代码特化档（可选，ultra-fast）
 codex exec -m gpt-5.3-codex-spark -c model_reasoning_effort="high" -s read-only \
-  --skip-git-repo-check "[任务]" 2>/dev/null
-
+  --skip-git-repo-check "[任务]"
 # 长文本走 stdin（会作为 <stdin> 块附加到 prompt 后）
 cat file.txt | codex exec -m gpt-5.6-terra -c model_reasoning_effort="medium" -s read-only \
-  --skip-git-repo-check "总结要点" 2>/dev/null
-```
+  --skip-git-repo-check "总结要点"```
 
+- **stderr 别丢弃**：模板已不再接 `2>/dev/null`——codex 的 `tokens used` 与错误信息都走 stderr，丢弃它与"检查错误体/报告用量"的规则冲突。留痕时 stdout/stderr 都落盘；程序化消费用 `--json` 解析，别靠丢弃 stderr 换干净输出。
 - **档位映射（2026-07-17 冒烟 5/5 全 OK）**：gpt-5.6 代三档 luna(低)/terra(中)/sol(高)按官方描述定档；上一代 `gpt-5.4-mini`/`gpt-5.4`/`gpt-5.5`/`gpt-5.3-codex-spark` 仍在售仍可用（用量日志漂移预警 → 冒烟确认的完整闭环首例）。
 - **本地事实源：`~/.codex/models_cache.json`**——CLI 自己缓存的官方模型清单（slug/描述/默认与可用 effort/priority/`fetched_at`）。此前"codex 不支持枚举、用静态表"的说法**作废**：接入与刷新读这个文件，别手抄本文件里的 ID。
 - **Codex 支持 stdin 管道**（实测 2026-07-08：`echo "1,2,3" | codex exec ... "求和"` → 正确返回）。`--help` 明载：stdin 被 pipe 时作为 `<stdin>` 块附加；prompt 用 `-` 亦可全部从 stdin 读。
@@ -50,7 +46,7 @@ kimi --version && kimi -p "只回复OK" -m kimi-code/kimi-for-coding-highspeed
 ```
 
 - **模型别名不要手抄，读本地事实源**：`~/.kimi-code/config.toml` 的 `[models."…"]` 段完整列出当前可用别名、真实模型 ID、上下文长度、effort 支持——派发前读它，别依赖本文件记的值。本机 2026-07-17 实测三个：`kimi-code/k3`（1M，efforts low/high/max）、`kimi-code/kimi-for-coding`（K2.7，256k）、`kimi-code/kimi-for-coding-highspeed`（K2.7 高速）。
-- **⚠️ 无只读档（0.26.0 实测）**：`-p` 模式**不加 `-y` 也默认可写盘**（实测让它建文件，直接 Write 成功落盘）；`--plan` 与 `-p` 互斥（`error: Cannot combine --prompt with --plan`）；`--help` 无 tools 白名单参数。护栏只剩**工作目录隔离**：每次派发在专用空目录里跑（审查材料拷进去），**绝不在宿主项目目录里跑 kimi 并发派发**。需要硬只读护栏的咨询/审查任务，优先走 `claude -p --tools Read,Grep,Glob` + Kimi 端点覆写（下方 coding plan 通道，需 API key）。
+- **⚠️ 无只读档（0.26.0 实测）**：`-p` 模式**不加 `-y` 也默认可写盘**（实测让它建文件，直接 Write 成功落盘）；`--plan` 与 `-p` 互斥（`error: Cannot combine --prompt with --plan`）；`--help` 无 tools 白名单参数。护栏只剩**工作目录隔离**：每次派发在专用空目录里跑（审查材料拷进去），**绝不在宿主项目目录里跑 kimi 并发派发**。**目录隔离只防相对路径误写，不是沙箱**——kimi 仍可按绝对路径写任何位置，不要对用户暗示这是"只读"。敏感工作区的咨询/审查任务，优先走有硬白名单的 `claude -p --tools Read,Grep,Glob` + Kimi 端点覆写（下方 coding plan 通道，需 API key）。
 - 输出混有 thinking 行（stderr）与 `To resume this session` 提示；程序化消费用 `--output-format stream-json` 解析，别整段当答案。
 - 定位：**执行者通道**（本来就要写盘的活，在隔离目录里跑没问题）+ 无 API key 时的 Kimi 兜底。作为跨厂商验证者用时，记住上一条的目录隔离。
 
@@ -94,7 +90,7 @@ ANTHROPIC_BASE_URL=https://api.kimi.com/coding/ ANTHROPIC_API_KEY=$KIMI_CODING_K
   claude -p --model kimi-for-coding "[任务]"
 ```
 
-PowerShell 宿主下用 `cmd /c "set ANTHROPIC_BASE_URL=… && set ANTHROPIC_AUTH_TOKEN=… && claude -p …"` 保证变量只作用于子进程。端点 URL 以各家官方文档当前值为准。
+**⚠️ 密钥不得展开进命令行**：`cmd /c "set ANTHROPIC_AUTH_TOKEN=<明文> && …"` 这类拼接会把展开后的 key 放进子进程命令行，本机进程列表可见（`Win32_Process.CommandLine`）——与六铁律的"不回显"冲突，**别用**。安全写法按优先级：① `cc_switch.py exec`（env 注入，key 永不进 argv 与上下文）；② bash 的 `VAR=$KEY cmd` 前缀形式（走环境块不进 argv，上方示例即此写法，安全）；③ PowerShell 宿主用 `$env:` 赋值再调用，用完清掉：`$env:ANTHROPIC_BASE_URL='…'; $env:ANTHROPIC_AUTH_TOKEN=$env:GLM_CODING_KEY; claude -p …; Remove-Item Env:ANTHROPIC_AUTH_TOKEN, Env:ANTHROPIC_BASE_URL`。端点 URL 以各家官方文档当前值为准。
 
 **⚠️ API 错误可能伪装成正常回答**：`claude -p` 在 API 报错时（如 529 过载、或 400「模型 ID 不存在」）**仍可能 exit 0**，并把错误文本塞进 `result` 字段。必须用 `--output-format json` 并检查 `is_error` / `api_error_status`，否则会把 `"API Error: 400..."` 当成模型答案交付。`cc_switch.py` 现已**始终**走 json 并在**任何**模式下校验（错误时 exit 8、stdout 为空），不再只在 `--usage` 分支检查。自己写命令模板时务必同样处理——纯文本直连时也要看响应体是不是 error。
 
@@ -141,6 +137,15 @@ curl -s https://<host>/v1/chat/completions \
 #    content 空 + finish_reason=="length" ⇒ 被截断，应加大 max_tokens 重试，而不是从草稿里抠答案。
 ```
 
+- **⚠️ `-H "… Bearer $API_KEY"` 展开后进 curl 的命令行**，本机进程列表可见。单人本机通常可接受，但多用户/受审计环境用 config-from-stdin 把 header 挪出 argv：
+
+  ```bash
+  curl -s https://<host>/v1/chat/completions -K - -d @payload.json <<EOF
+  header = "authorization: Bearer $API_KEY"
+  header = "content-type: application/json"
+  EOF
+  ```
+
 - **`enable_thinking:false`（或各家等价参数）** —— 纯文本任务必加。实测（5 模型均证实该参数真实生效）：推理模型开着思考纯烧 output，Qwen 抽取任务 1159→18 token（**64×**），**正确率无变化**（预算给够时两边都对）。省的是 token，不是错误率。
 - **开着思考时 max_tokens 必须给到关思考时的 50× 以上。** 推理 token 与答案 token **共享同一个输出预算**。同一个 Qwen 抽取任务：关思考 18 token 够用，开思考要 ~1200；给 512 会把思考掐断在半路，`content` 直接为空。`completion == max_tokens` 就是撞顶的指纹。**"≥512 就够"是错的**（本项目曾据此得出错误结论，见 `FINDINGS-thinking-truncation.md`）。
 - **批量合并**：50 条要分类的，拼成一次调用，别发 50 次——固定开销才摊得开。
@@ -164,7 +169,7 @@ cat file.txt | aichat -m <provider>:<model> "总结要点"   # 长文本走 stdi
 **一次配好，永久复用**：API key（用户级环境变量 `setx`）、aichat config.yaml、manifest.md 三者都持久化，跨会话跨重启有效。之后每次派工自动读取，用户无需重输。每次派工"重新设置"的只有子进程那次性环境变量——自动、隐形，且正是隔离安全的来源，不算重复配置。key 过期/轮换时重跑一次 `setx` 即可（当前 shell 需重启才见新值，新开的 shell 直接生效）。
 
 **模型 ID 漂移**（模型在迭代，如 glm-4.6→GLM-4.7→GLM-5.2、gpt-5.4→5.5）：
-- 本文件是**唯一**需要维护模型 ID 的地方，漂了改这里即可，skill 其余逻辑不动。
+- **权威来源分两类**：有本地事实源的（codex `models_cache.json`、kimi `config.toml`、cc-switch 映射、aichat `--list-models`）**运行时读，本文件只记"去哪读"**；没有事实源的（如 coding plan 端点在售 ID）才把值记在本文件。本文件模板里出现的具体 ID 都是**示例快照**，以事实源/官方文档当前值为准。漂了改这里即可，skill 其余逻辑不动。
 - 派发命中"unknown model / 模型不存在"类错误：先去掉 `-m`/`--model` 用该 CLI **默认模型**重试（默认通常跟随当前版），再提示用户更新本文件对应行。
 - 支持枚举的 CLI（`aichat --list-models`）以枚举为准；不支持的（claude/codex/gemini）以各家官方文档当前型号为准。
 
