@@ -2,6 +2,8 @@
 
 抽象定义："命令模板 + 模型参数"。换任何等价 CLI 只需替换模板，其余逻辑不变。模型名会过时，以各 CLI 当前版本为准替换。
 
+**所有外部派发统一附 `AI_CROSS_PEER=1` 环境变量**（防套娃标记）：bash 用前缀 `AI_CROSS_PEER=1 codex exec …`；PowerShell 先 `$env:AI_CROSS_PEER='1'` 再调用；`cc_switch.py exec` 已自动注入。被派方若也装有 ai-cross，检测到该变量即知自己是子任务，只执行不再外派（规则见 SKILL.md 稳健性规则「防套娃」条）。
+
 ## Codex 三档
 
 ```bash

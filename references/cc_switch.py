@@ -127,6 +127,7 @@ def cmd_exec(args):
     child["ANTHROPIC_BASE_URL"] = base
     child["ANTHROPIC_AUTH_TOKEN"] = token
     child.pop("ANTHROPIC_API_KEY", None)
+    child["AI_CROSS_PEER"] = "1"  # 防套娃标记：被派方据此判定自己是子任务，不得再外派
     # token 只在 child 环境里，绝不打印
     # 注意：绝不能用 shell=True + 列表参数——Windows 下多行任务文本会在换行处被截断
     claude_bin = shutil.which("claude")
