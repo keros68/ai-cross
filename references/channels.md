@@ -71,7 +71,6 @@ kimi --version && kimi -p "只回复OK" -m kimi-code/kimi-for-coding-highspeed
 **⚠️ 冒烟判据必须是「回答的是不是它」，不是「有没有回答」（2026-07-09 实测，血泪）**：GLM 的 Anthropic 兼容端点对**格式合法但它不提供**的模型名（如任何 Anthropic 官方 ID、`haiku`/`sonnet`/`opus` 别名）**不报错，而是静默用 `glm-4.7` 应答**；只有完全无法解析的名字才吃 400。后果：你以为在用 opus 档，其实拿到的是最便宜模型的回答，全程零报错。
 - **冒烟不能只看"有回复"**——必须直接打 `{base}/v1/messages`，比对**响应体的 `model` 字段**与请求是否一致；不一致即静默降级，结论记入 `manifest.md`。现成工具：`python <本skill目录>/references/verify_model.py --provider "<cc-switch里的名字>"`（只读 cc-switch 取端点，逐档打端点比对真身；也可 `--models "a,b,c"` 测指定 ID）。**连官方文档给的 ID 也要过这一关**——实测出现过文档说可用、该账号却 400 的情况（如某些 1M 长上下文版按套餐开通）。
 - CLI 的 `modelUsage` 记的是**请求值**不是服务端返回值，**不能**用来判断真身。
-- 复现脚本见 `FINDINGS-glm-model-id.md`（项目根）。
 
 **已验证（claude 2.1.204 实测，2026-07-08）**：子进程覆写 `ANTHROPIC_BASE_URL`+token 时，CLI 明确以注入 auth 源**优先于 claude.ai 登录**（会打印一行提示说明这点）；实测宿主会话登录、`~/.claude/settings.json`（env 保持 `{}`）、宿主进程环境三者均不受影响；被重定向的子进程与走官方订阅的子进程可**并发共存、互不干扰**。隔离是操作系统进程级的，前提是覆写只按子进程传、不写全局配置（见上条铁律）。
 
@@ -150,7 +149,7 @@ curl -s https://<host>/v1/chat/completions \
   ```
 
 - **`enable_thinking:false`（或各家等价参数）** —— 纯文本任务必加。实测（5 模型均证实该参数真实生效）：推理模型开着思考纯烧 output，Qwen 抽取任务 1159→18 token（**64×**），**正确率无变化**（预算给够时两边都对）。省的是 token，不是错误率。
-- **开着思考时 max_tokens 必须给到关思考时的 50× 以上。** 推理 token 与答案 token **共享同一个输出预算**。同一个 Qwen 抽取任务：关思考 18 token 够用，开思考要 ~1200；给 512 会把思考掐断在半路，`content` 直接为空。`completion == max_tokens` 就是撞顶的指纹。**"≥512 就够"是错的**（本项目曾据此得出错误结论，见 `FINDINGS-thinking-truncation.md`）。
+- **开着思考时 max_tokens 必须给到关思考时的 50× 以上。** 推理 token 与答案 token **共享同一个输出预算**。同一个 Qwen 抽取任务：关思考 18 token 够用，开思考要 ~1200；给 512 会把思考掐断在半路，`content` 直接为空。`completion == max_tokens` 就是撞顶的指纹。**"≥512 就够"是错的**（本项目曾据此得出错误结论）。
 - **批量合并**：50 条要分类的，拼成一次调用，别发 50 次——固定开销才摊得开。
 - key 用用户级环境变量引用（`$API_KEY`），不落明文；**这是纯按量 API，不是 coding plan**（后者不能这么直连）。
 
