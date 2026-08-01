@@ -4,7 +4,7 @@
 >
 > 本文中**一切关于「开启思考导致答错」的结论与倍数（含"512 → 18 token，28×，从错变对"）均已撤回**。
 > 真因是 `max_tokens=512` 掐断了思考，且判分脚本回退去读没写完的 `reasoning_content`。
-> 预算给到 2048 后，同一任务 thinking=on 正确率 100%。见 `../FINDINGS-thinking-truncation.md`。
+> 预算给到 2048 后，同一任务 thinking=on 正确率 100%。
 > 接替实验：`run_depth.py`（判分只看 content，截断单独记账）。
 >
 > 下文中不涉及 thinking 对错判定的观测（跨模型 token 中位数、格式遵循等）仍可参考。
