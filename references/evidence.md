@@ -49,6 +49,18 @@
 
 同一句"你好"的 input：裸 API 无系统提示地板 11 token → 加系统提示 241 → `claude -p` ~30k（工具定义 + 技能索引）。同一模型同一空任务，内部 subagent 对比外部 `claude -p` 相差 7.6×。完整数据表见 `references/dispatch-design.md`。计费双峰：冷调用付全额 fresh（16k–30k），热调用几乎全走缓存（0.1k–3k，TTL 约 5 分钟）。技能索引有上限（codex 约 2% 上下文预算）：移除 14 个技能后模型可见 prompt 几乎不变（42,802→43,052 字符）——"少装 skill 省钱"是错的。
 
+**固定足迹按 `--tools` 分档（claude 2.1.232 + haiku，同一任务"只回复两个字：正常"，2026-08-14）**——上面那个 ~30k 是**不传 `--tools`** 时的值，一直被当作"`claude -p` 的足迹"引用，掩盖了白名单的省额度效果：
+
+| `claude -p` 配置 | 总 input | 相对默认 |
+|---|---|---|
+| `--tools ""`（纯文本） | **12,239** | **−61%** |
+| `--tools Read,Grep,Glob`（只读咨询，`cc_switch.py` 默认） | 14,238 | −54% |
+| 不传 `--tools`（默认全工具） | 31,275 | 基准 |
+
+**可省的是工具定义（19k，占默认足迹 61%），砍不掉的是 ~12k 系统提示底座。** 冷/热双峰同轮复现：同配置立即重跑，`cache_read` 全额命中（12,229）、fresh input 仅 10。
+
+**负结果（别抄）**：`--exclude-dynamic-system-prompt-sections` 只把 12,229 降到 12,071（−1.3%）。该参数是为**跨用户共享缓存**设计的，不是单机省 token 手段——不进路由表。
+
 ## advisor 经济学在 CLI 架构下反转
 
 原始依据（Anthropic advisor 工具基准）：Sonnet+Opus 顾问比 Sonnet 单独高 2.7pp 且成本降 11.9%。但原生 advisor 是 Messages API 的 in-request 工具、不重发上下文；跨 CLI 咨询每次付完整 20k–30k 冷启动。本项目实测 advisor 臂 input 2.1×、耗时 2.2×、正确率零增益（执行者本就 100% 且零 thrash，天花板效应——advisor 的准确率收益既未复现也未证伪）。

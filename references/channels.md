@@ -121,11 +121,32 @@ echo "[任务]" | claude -p --model X --tools ""
 
 `cc_switch.py` 已默认 `--tools Read,Grep,Glob` 并把 task 经 stdin 送入；纯文本任务传 `--tools ""`。
 
+**`--tools` 不只是安全护栏，也是最大的一笔省额度（claude 2.1.232 + haiku 实测，2026-08-14）**：
+
+| 配置 | 固定 input | 相对默认 |
+|---|---|---|
+| `--tools ""` | **12,239** | **−61%** |
+| `--tools Read,Grep,Glob` | 14,238 | −54% |
+| 不传 `--tools` | 31,275 | 基准 |
+
+一直被引用的"`claude -p` ≈30k"就是**最后那一行**。手写命令模板漏掉 `--tools` = 白付 2.5 倍固定足迹，且失去只读护栏——**两件事同一个参数管，没有理由不写**。砍不掉的是 ~12k 系统提示底座（要更低只能走裸 API，地板 11）。
+
+**别抄的负结果**：`--exclude-dynamic-system-prompt-sections` 只省 1.3%（12,229→12,071），它是为跨用户共享缓存设计的，不是单机省 token 手段。
+
+**`--fallback-model <a,b>`（claude 2.1.232 有）**：主模型过载/不可用时自动按序换模型。可作为本 skill「通道熔断」的 CLI 层兜底——但**它换的是模型不是厂商**，同厂商 fallback 不构成交叉验证的独立源；熔断后要不要换厂商仍由编排者按 SKILL.md 规则判。
+
 **合规注**：多数 coding plan 条款限定用于 coding agent（Claude Code 等）。本通道载体就是 claude CLI，属限定范围内的用法；**不要**用 aichat 直连 coding plan 端点（可能违反条款，网关也常拒非 agent 流量）——aichat 只兜按量 API。
+
+**⚠️ 千问 Token Plan（`sk-sp-` 开头的 key）不作为派发通道**（2026-08-14 核实）：
+
+- 可观察的事实两条：①千问官方 skill 仓库（`QianWen-AI/qianwen-ai`）明文写 `sk-sp-` keys are *"strictly forbidden in automation scripts, application backends, batch jobs, API testing tools, and workflow platforms"*，并点名禁止覆写 `QWEN_BASE_URL` 重定向该 key；②其客户端确实硬失败——`skills/*/scripts/qianwen_lib.py` 检测到 `key.startswith("sk-sp-")` 直接 `sys.exit(1)`，提示"requires a standard API key (sk-...)"。
+- **但平台公开文档（`platform.qianwenai.com/docs/token-plan/overview`）里查不到对应条款**，那些措辞目前只有厂商 skill 单一来源。代码里的实际提示也只说"本脚本要标准 key"，没提封号。
+- **结论：要接千问就用标准 `sk-` 按量 key 走裸 API/aichat**。Token Plan 额度留给交互式宿主自己用，别接进 ai-cross 的批量派发——风险不明确时不赌。
+- 顺带记一条**边界案例**：千问 Token Plan 的模型清单里含第三方权重（`glm-5.2`/`glm-5.1`、`deepseek-v4-*`、`kimi-k2.*`、`MiniMax-M2.5`）。这是**一个计费源内含多厂商权重**——按本 skill 的定义，权重独立性成立（可做交叉验证）、计费独立性不成立（熔断时一起没）。真接入这类"聚合订阅"时，manifest 的厂商列按**权重厂商**填，额度归属列填**聚合平台**，两者不可合并成一列。
 
 ## 纯文本任务：裸 API 直调（最省，地板 ~11 token）
 
-纯文本任务（分类/摘要/翻译/抽取/自包含问答，**不需要工具**）**不该走 harness**，主 agent 直接打端点即可——无系统提示、无工具定义，input 地板实测 **11 token**（对比 `claude -p` ~30k）。下面示例是 **OpenAI 兼容格式**（`/v1/chat/completions`）；Anthropic 协议端点走 `/v1/messages`，请求体格式不同（`max_tokens` 必填、消息结构不同），别混用同一模板。
+纯文本任务（分类/摘要/翻译/抽取/自包含问答，**不需要工具**）**不该走 harness**，主 agent 直接打端点即可——无系统提示、无工具定义，input 地板实测 **11 token**（对比 `claude -p --tools ""` 12k、不收窄工具时 31k，见上节实测表）。下面示例是 **OpenAI 兼容格式**（`/v1/chat/completions`）；Anthropic 协议端点走 `/v1/messages`，请求体格式不同（`max_tokens` 必填、消息结构不同），别混用同一模板。
 
 ```bash
 # OpenAI 兼容端点（DeepSeek/硅基流动/OpenRouter 等）
@@ -187,6 +208,8 @@ cat file.txt | aichat -m <provider>:<model> "总结要点"   # 长文本走 stdi
 **CLI 二进制版本**：记录版本号、**不自动升级**（升级可能带破坏性变更）；仅冒烟失败且疑似过旧时才向用户建议升级命令。
 
 **本地有事实源的值不手抄**：kimi 的 `~/.kimi-code/config.toml [models]` 段、cc-switch 的档位→模型映射（`cc_switch.py list`）、aichat 的 `--list-models`、`~/.claude/settings.json` / `~/.codex/config.toml` 的用户偏好——这些派发前**运行时读**，本文件与 manifest 只记"去哪读"和实测结论，不当值的权威来源。值不会过期，因为根本不存。
+
+**⛔ 不得静默降级用旧值**（原则落地，2026-08-14 补）：manifest 每行带**来源**列——`读:<命令/路径>` / `文档(日期)` / `申报(日期)`。标了 `读:` 的行，派发前按该来源实读；读失败（CLI 没装、配置被删、命令报错）时**可以**用 manifest 的记录值顶上，但必须在路由决策行或汇总里当场说明「事实源读取失败，用的是 <日期> 的记录值，未实读」。理由：模型 ID 漂移本身不致命，**漂移变成静默故障才致命**——记录值一旦被无声当成实读值，静默降级（GLM 那种）就查不出来了。
 
 **过期检测（TTL + 冒烟）**：manifest 每行的冒烟日期就是新鲜度。派发前扫一眼：目标通道条目**超过 30 天**未验证 → 先跑该档最便宜冒烟；第三方 Anthropic 兼容端点还必须过 `verify_model.py` 真身核对（防静默降级），通过后刷新 manifest 日期再派。失败才进入上面的漂移处理流程。原则：**自动化的是"发现过期"，改配置必须用户确认**——端点会谎报（静默降级实测在案），唯一可信的更新依据是冒烟，自动改写配置只会把谎报固化进配置。
 
