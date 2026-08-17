@@ -47,7 +47,7 @@ version: 1.9.0
 | **裸 API 直调** | 主 agent 直接 `curl` OpenAI/Anthropic 兼容端点 | API 按量 | 全部宿主 |
 | 外部 aichat | `aichat -m <provider>:<model>`（裸 API 的 CLI 封装） | API 按量 | 全部宿主 |
 
-**裸 API 直调**：无系统提示无工具，token 地板实测 11（对比 `claude -p --tools ""` 12k、不收窄工具时 31k）。但它是**真金白银的按量计费**，在订阅/coding plan 之外——只有按量用户、或需要保住订阅额度做重活时才划算；订阅用户的日常任务直接用订阅内通道，别为省"已付过的 token"去掏钱。命令模板见 `references/channels.md`。
+**裸 API 直调**：无系统提示无工具，token 地板实测 11（对比 `claude -p --tools ""` 12k、不收窄工具时 31k）。但它是**真金白银的按量计费**，在订阅/coding plan 之外——只有按量用户、或需要保住订阅额度做重活时才划算；订阅用户的日常任务直接用订阅内通道，别为省"已付过的 token"去掏钱。命令模板见 `references/channels.md`，**带凭据出网的护栏见 `references/security.md`**（密钥六铁律 + 只读隔离）。
 
 **在无内部通道的宿主（Codex/WorkBuddy/Qoder 等）**：路由表照用（它输出的是**档位 + thinking**两个正交旋钮），只是低/中/高档由外部通道承担，`scout/worker/heavy` 仅作档位语义的占位名，不是可调用的角色。
 

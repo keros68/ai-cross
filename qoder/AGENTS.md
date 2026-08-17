@@ -8,6 +8,6 @@
 
 3. **交叉验证必须显式换厂商**。Qoder 底层是自动路由的多厂商混合（Claude/GPT/Gemini 等），路由不透明、可能撞同一厂商。所以交叉审查时，必须**显式派给一个明确不同厂商**的模型（例如派给 `codex`=OpenAI、或 GLM/DeepSeek 裸 API），**不能依赖 Qoder 自动路由**，也不能"再问一次自己"。
 
-4. **派发命令的执行**：`python ai-cross/references/*.py` 这类常规命令 Qoder 会自动跑；`claude -p` / `codex exec` / `curl`（联网/未知命令）可能触发 Qoder 的风险审批或 sandbox——首次会让你在 IDE 里点批准，放行即可（或切 Experts Mode 减少打断）。
+4. **派发命令的执行**：`python ai-cross/references/` 下的三个只读脚本（`cc_switch.py` / `verify_model.py` / `usage_probe.py`）Qoder 会自动跑；`claude -p` / `codex exec` / `curl`（联网/未知命令）可能触发 Qoder 的风险审批或 sandbox——首次会让你在 IDE 里点批准，放行即可（或切 Experts Mode 减少打断）。
 
 现在请读取并遵循 `./ai-cross/SKILL.md`，按其中的路由三步走与执行闭环规则工作。
