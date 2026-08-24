@@ -4,6 +4,22 @@
 
 **所有外部派发统一附 `AI_CROSS_PEER=1` 环境变量**（防套娃标记）：bash 用前缀 `AI_CROSS_PEER=1 codex exec …`；PowerShell 先 `$env:AI_CROSS_PEER='1'` 再调用；`cc_switch.py exec` 已自动注入。被派方若也装有 ai-cross，检测到该变量即知自己是子任务，只执行不再外派（规则见 SKILL.md 稳健性规则「防套娃」条）。
 
+## 大材料怎么交给被派方（>30KB 必读）
+
+「材料」指要被派方读的**那段内容本身**（一份稿件、几个源码文件拼起来的、你直接粘的一大段文字），不是"文件"这个概念。同一份材料有三种交法，代价差一个数量级——60KB 材料实测，末行埋标记核对是否完整送达（2026-08-24，Windows）：
+
+| 交法 | 命令形态 | 60KB 实测 | 上限 |
+|---|---|---|---|
+| **从文件/stdin 读进去**（首选） | `cc_switch.py exec --task-file f.txt`、`codex exec < f.txt` | **6.8s 单轮**（DeepSeek-flash，25782 tokens）/ 31.6s（codex） | 无 |
+| **内联进命令行** | `kimi -p "…整篇正文…"` | **命令发不出去** | Windows 命令行 ≈32KB 字节（中文约 1 万字） |
+| **只给路径让它自己读** | `kimi -p "读 draft.md，审一下"` | 58.7s | 无上限，但最慢 |
+
+- **32KB 那道墙是操作系统的，不是某个 CLI 弱。** 同样长度的 argv 喂给 `python.exe` 在同一位置失败（实测 32600 字节 ok、32700 字节 `Argument list too long`）。按 **UTF-8 字节**算，不按字符算：10000 汉字（30000 字节）通过、16000 汉字（48000 字节）失败。Linux/macOS 的 argv 约 2MB，**这是 Windows 专属故障**。
+- **有 stdin 或文件入口的通道就绕开了这堵墙**：`claude -p`（prompt 走 stdin，`cc_switch.py --task-file` 即此路）、`codex exec`（`--help` 明载 stdin 作为 `<stdin>` 块附加）、裸 API（材料在请求体里，没有 argv 这回事）。**`kimi` CLI 三者皆无**（见下方 Kimi 段）。
+- **"只给路径让它自己读"是最慢的形态**：模型要多轮调工具去读，每轮重发全部上下文，规模越大越超线性。能内联就别让它自己读——内联 + `--tools ""` + 单轮完成是最省也最快的形态。
+- **换入口不等于能一次吃完。** 入口解决的是"能不能送进去"，送进去之后的时间由解码速度决定（他方报告转述、本机未复现：240KB 单轮内联仍要 8m30s）。超过单轮舒适区就**分块 map-reduce**，别指望找个更大的入口。
+- **症状识别**：进程活着、CPU 近乎为零、stdout 长时间为空 → 看起来像"通道挂了"，实际优先怀疑两件事：**任务形态错了**（让模型自己读大文件）、**额度耗尽**（端点欠费时是挂住不返回、不报错，实测 GLM 挂满 180s 超时）。两者都不是性能问题，别按过载去重试。
+
 ## Codex 三档
 
 ```bash
@@ -37,7 +53,7 @@ cat file.txt | codex exec -m gpt-5.6-terra -c model_reasoning_effort="medium" -s
 Moonshot 官方 agent CLI，OAuth 登录（`kimi login` 设备码流程），**无需 API key**——没配 `KIMI_CODING_KEY` 时这是唯一的 Kimi 通道。**Windows 实测（0.26.0，2026-07-17）装完不进 PATH**，二进制在 `~/.kimi-code/bin/kimi.exe`：模板用全路径，或让用户把该目录加进 PATH。
 
 ```bash
-# 高档：K3（1M 上下文；effort low/high/max，默认 max，旋钮在 config.toml 无命令行参数
+# 高档：K3（1M 上下文；effort low/high/max，默认 high，旋钮在 config.toml 无命令行参数
 #       ——即 thinking 档位无法按次派发切换，路由时把 kimi 视为固定档通道）
 kimi -p "[任务]" -m kimi-code/k3
 
@@ -50,6 +66,10 @@ kimi --version && kimi -p "只回复OK" -m kimi-code/kimi-for-coding-highspeed
 
 - **模型别名不要手抄，读本地事实源**：`~/.kimi-code/config.toml` 的 `[models."…"]` 段完整列出当前可用别名、真实模型 ID、上下文长度、effort 支持——派发前读它，别依赖本文件记的值。本机 2026-07-17 实测三个：`kimi-code/k3`（1M，efforts low/high/max）、`kimi-code/kimi-for-coding`（K2.7，256k）、`kimi-code/kimi-for-coding-highspeed`（K2.7 高速）。
 - **⚠️ 无只读档（0.26.0 实测）**：`-p` 模式**不加 `-y` 也默认可写盘**（实测让它建文件，直接 Write 成功落盘）；`--plan` 与 `-p` 互斥（`error: Cannot combine --prompt with --plan`）；`--help` 无 tools 白名单参数。护栏只剩**工作目录隔离**：每次派发在专用空目录里跑（审查材料拷进去），**绝不在宿主项目目录里跑 kimi 并发派发**。**目录隔离只防相对路径误写，不是沙箱**——kimi 仍可按绝对路径写任何位置，不要对用户暗示这是"只读"。敏感工作区的咨询/审查任务，优先走有硬白名单的 `claude -p --tools Read,Grep,Glob` + Kimi 端点覆写（下方 coding plan 通道，需 API key）。
+- **⚠️ 没有大输入入口（0.38.0 实测，2026-08-24）**：`-p` 只收 argv，**管道 stdin 被完全忽略**（实测 `echo "口令 PANDA-4417" | kimi -p "看到口令就回答它"` → 答 NONE），`--help` 也无 `--prompt-file`。于是 Windows 命令行 ≈32KB 的硬顶对 kimi 成了**没有出口的硬顶**——同一堵墙 `claude -p` 和 `codex exec` 都能靠 stdin 绕开，kimi 绕不过去。**>1 万汉字的材料别派给 kimi CLI**：走 `cc_switch.py exec --task-file` 或 `codex exec < file`，或分块。这不是模型能力问题，是壳少一个入口（壳 ≠ 模型的又一实例）。详见上方「大材料怎么交给被派方」。
+- **思考关不掉**：`config.toml` 里 k3/K2.7 的 capabilities 均含 `always_thinking`，`[thinking] enabled = true`。即每次派发都付思考 token，**kimi 不能作为"关思考的便宜执行者"用**。实测 k3 可见输出吞吐 ~33 tok/s（1261 字 / 34s），长产出任务的耗时大头在解码，不在预填。
+- **会主动读工作目录里的无关文件**（0.38.0 实测）：一次派发中它自行打开了 cwd 里残留的 `prompt.txt`，还在思考里纠结"这文件说不要调工具"。**目录隔离不只防误写盘，也防上下文污染**——作为验证者派发时，cwd 里的脏文件会破坏盲验。
+- **超长行文件（0.26.0 实测，0.38.0 已不复现）**：旧版 Read 工具对单行数千字符的 Markdown 反复返回截断预览，10 轮零产出。0.38.0 复测（单行 20000 字符）模型改用 Bash `tail` 绕开，16.6s 正常完成。**若再遇到零产出**，仍按老办法把材料按 ≤100 字符换行（`textwrap.wrap`）后重派——这是升级阶梯第①条「先查输入是否送达」的实例。
 - 输出混有 thinking 行（stderr）与 `To resume this session` 提示；程序化消费用 `--output-format stream-json` 解析，别整段当答案。
 - 定位：**执行者通道**（本来就要写盘的活，在隔离目录里跑没问题）+ 无 API key 时的 Kimi 兜底。作为跨厂商验证者用时，记住上一条的目录隔离。
 

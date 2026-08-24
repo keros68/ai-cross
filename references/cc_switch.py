@@ -150,8 +150,10 @@ def cmd_exec(args):
         )
     except subprocess.TimeoutExpired:
         print(f"[超时] provider={args.provider} model={model} 超过 {args.timeout}s 未返回。\n"
-              f"提示: 可能是端点过载(529)，也可能是模型 ID 无效(400 被 CLI 反复重试到超时)。\n"
-              f"      别默认当成过载——先直接打端点看响应体，再决定是熔断切备选还是纠正模型 ID。",
+              f"提示: 三种可能——①额度耗尽/欠费（端点挂住不返回、不报错）\n"
+              f"      ②端点过载(529) ③模型 ID 无效(400 被 CLI 反复重试到超时)。\n"
+              f"      别默认当成过载——先直接打端点看响应体，再决定是充值、熔断切备选还是纠正模型 ID。\n"
+              f"      材料很大时还要先排查任务形态（见 channels.md「大材料怎么交给被派方」）。",
               file=sys.stderr)
         sys.exit(9)
 
