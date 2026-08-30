@@ -1,7 +1,7 @@
 ---
 name: ai-cross
 description: 多模型分工与跨厂商交叉验证 skill：把任务派给合适的模型分工执行，用不同厂商的模型互相核查关键产出，按档位分层派发以节省订阅额度。适用场景：用户要求派发任务、分层执行、多模型协作、对关键产出做交叉验证、盘点或接入可用模型，或提到 dispatch、派工。不适用场景：单模型环境下的普通任务（没有派发需求时不要触发）、没有 shell 执行能力的纯聊天宿主。
-version: 1.11.1
+version: 1.12.0
 ---
 
 # ai-cross — 多模型分工与跨厂商交叉验证
@@ -41,7 +41,7 @@ version: 1.11.1
 | 通道 | 载体 | 计费 | 宿主适用性 |
 |---|---|---|---|
 | 内部 subagent | scout/worker/heavy | Claude 订阅 | **仅 Claude Code 宿主** |
-| 外部 agent CLI | `codex exec` / `kimi` 等（gemini/qoder CLI 已下线，见 channels.md） | 各自订阅 | 全部宿主 |
+| 外部 agent CLI | `codex exec` / `kimi` / `pi` 等（gemini/qoder CLI 已下线，见 channels.md） | 各自订阅 | 全部宿主 |
 | 外部 coding plan | `claude -p` + 按进程环境变量覆写（GLM/Kimi 等） | coding plan 订阅 | 全部宿主 |
 | 外部 cc-switch 桥 | `cc_switch.py exec` | 对应 provider | 全部宿主 |
 | **裸 API 直调** | 主 agent 直接 `curl` OpenAI/Anthropic 兼容端点 | API 按量 | 全部宿主 |

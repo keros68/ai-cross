@@ -20,7 +20,7 @@
 **这些动作是"探测"，不是"盲扫"，默认直接执行**：在同一条消息里告知用户"正在只读检测本机模型入口"即满足知情原则（白名单见 `security.md`），无需停下等许可。它们不登录、不发模型请求、不读密钥明文、零费用。
 
 1. **CLI 存在检测**（只跑 `--version`，不存在就跳过，报错不算失败）：
-   `claude --version`、`codex --version`、`kimi --version`、`qoder --version`、`aichat --version`、`codebuddy --version`、`hermes --version`。kimi 在 Windows 装完可能不进 PATH，补试全路径 `~/.kimi-code/bin/kimi.exe`。
+   `claude --version`、`codex --version`、`kimi --version`、`pi --version`、`qoder --version`、`aichat --version`、`codebuddy --version`、`hermes --version`。kimi 在 Windows 装完可能不进 PATH，补试全路径 `~/.kimi-code/bin/kimi.exe`。
 2. **cc-switch 只读桥**（`~/.cc-switch/cc-switch.db` 存在才跑）：
    ```
    python <本skill目录>/references/cc_switch.py list

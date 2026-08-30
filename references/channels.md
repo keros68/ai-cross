@@ -88,12 +88,45 @@ kimi --version && kimi -p "只回复OK" -m kimi-code/kimi-for-coding-highspeed
 - 输出混有 thinking 行（stderr）与 `To resume this session` 提示；程序化消费用 `--output-format stream-json` 解析，别整段当答案。
 - 定位：**执行者通道**（本来就要写盘的活，在隔离目录里跑没问题）+ 无 API key 时的 Kimi 兜底。作为跨厂商验证者用时，记住上一条的目录隔离。
 
+## pi（外部 agent harness，接多家 coding plan）
+
+Earendil 出品的开源 agent CLI（github.com/earendil-works/pi），组织方式是 **provider → 模型数组** 两级：一个 pi 下能挂多个第三方 coding plan/API provider，每个 provider 下多个模型。用户已用它替代 cc-switch 接入多个 coding plan。
+
+```bash
+# 冒烟/低档：指定 provider + 模型，非交互单轮，JSON 输出，不加载项目指令，无工具
+AI_CROSS_PEER=1 pi --provider zai-coding-cn --model glm-4.7 -p --no-tools \
+  --no-extensions --mode json --no-context-files "[任务]"
+
+# 只读（能读不能写，pi 自带的工具白名单预设）
+AI_CROSS_PEER=1 pi --provider zai-coding-cn --model glm-4.7 -p --tools read,grep,find,ls \
+  --no-extensions --mode json --no-context-files "[任务]"
+
+# 大材料走 stdin（不给正文位置参数，pi 把 stdin 整体当消息）
+cat file.txt | AI_CROSS_PEER=1 pi --provider zai-coding-cn --model glm-4.7 -p --no-tools \
+  --no-extensions --mode json --no-context-files
+
+# 续聊：固定 --session-id，跨进程能接上下文（无需保存/传递 session 文件路径）
+AI_CROSS_PEER=1 pi --provider zai-coding-cn --model glm-4.7 -p --no-tools \
+  --no-extensions --mode json --no-context-files --session-id <固定id> "[任务]"
+```
+
+- **模型清单事实源、别手抄**：`~/.pi/agent/models-store.json`（provider→模型数组，含 baseUrl/cost/contextWindow/是否支持 thinking 等元数据，可能含未鉴权条目）+ `pi --list-models`（运行时枚举，只报**已鉴权可用**的模型，更贴近"能不能派"）。`pi auth check --provider <名字> --json` 查 provider 是否就绪（只输出 `status`/`authType`，不吐 key）。本机 2026-08-30 实测 `pi --list-models` 列出两个 provider：`qwen-token-plan-cn`（deepseek-v3.2/v4-flash/v4-pro、glm-5/5.1/5.2、kimi-k2.5/2.6/2.7-code、MiniMax-M2.5、qwen3.6~3.8 系列）与 `zai-coding-cn`（glm-4.7/5-turbo/5.2/5.2-highspeed/5.3）。
+- **⚠️ `qwen-token-plan-cn` 慎接入派发**：这是本机 pi 的 `defaultProvider`，若其底层是 `sk-sp-` 开头的千问 Token Plan key，按本文件上方「千问 Token Plan 不作为派发通道」一条，该 key 被厂商明文禁止用于自动化/批量脚本——接入前先确认这个 provider 背后到底是哪种 key（`pi auth check` 不吐值，判不出类型，需问用户），不确定就先只用 `zai-coding-cn` 等常规 coding plan provider 派发。
+- **真身核对**：`--mode json` 的每条消息事件都带 `provider`/`model` 字段，可直接比对响应是否命中请求的模型（本机实测 `--model glm-4.7` 请求 → 响应 `provider":"zai-coding-cn","model":"glm-4.7"` 一致，未观察到静默降级；但只测了一个模型，不代表全体型号都不降级）。
+- **⚠️ exit code 会假阴性（0.84.2 实测，2026-08-30）**：默认加载扩展时，`-p --mode json` 一轮正确应答（`agent_end`/`agent_settled` 均已出现、答案正确）之后，本机装的 `~/.pi/agent/extensions/advanced-footer.ts` 在渲染收尾时抛出未捕获异常（"ctx is stale after session replacement"），导致进程仍以 **exit 1** 退出——纯粹是这一个本地扩展的 bug，与任务本身无关。**派发命令一律加 `--no-extensions`** 可让 exit code 恢复为 0；即便加了，程序化消费也不该只信 exit code，应解析 JSON 流里是否出现 `agent_settled` 且末条 assistant 消息含 `text` 类型内容块。
+- **⚠️ 答案可能只出现在 thinking 块里、text 块为空**（0.84.2 实测，2026-08-30，`--no-extensions` 下亦复现一次）：同一句"只回复 OK"，某次响应的 assistant content 只有一个 `type:"thinking"` 块（内容是"OK"），没有任何 `type:"text"` 块。这正是 `AGENTS.md`"判分绝不回退读 reasoning_content"那条铁律的活例子——解析 pi 输出时必须显式要求 `text` 类型内容块存在，为空不能回退去读 thinking/reasoning 字段当答案。
+- **stdin 可行**：不给正文位置参数、把内容整段管道进去，pi 把 stdin 当消息，多行内容原样送达（2026-08-30 实测两行文本无截断）——与 `claude -p`/`codex exec` 同属"有 stdin 入口"的通道，不受 Windows argv 换行截断限制。
+- **只读性优于 kimi**：pi 有真正的工具层白名单——`--no-tools` 关全部工具（已冒烟验证不落盘写不了）；`--tools read,grep,find,ls` 是官方文档给的只读预设（`--help` 自带示例，本次未逐条验证每个工具确实被挡，护栏来自工具注册层而非仅目录隔离）。也支持 `--no-context-files` 跳过 AGENTS.md/CLAUDE.md 加载，作验证者派发时能避免读到我方结论。
+- **续聊**：`--session-id <固定id>` 在两个独立进程间可靠接上下文（2026-08-30 两轮口令 OTTER-2210 实测 PASS）；`--continue/-c` 续最近一次、`--resume/-r` 交互选择，未逐一冒烟。
+- **思考旋钮**：`--thinking off|minimal|low|medium|high|xhigh|max`（`--help` 列出的档位），比 codex 的四档更细；`off` 是否真能关闭思考本次未冒烟验证，别假设等同 kimi 那种"关不掉"。
+- 定位：**pi 是壳不是模型**，它下面每个 provider 按其权重厂商算独立性、按其计费源算额度（与 `setup.md`「聚合型订阅」一条同理）。
+
 ## ⚠️ 已停用/不适用的通道（2026-07 核实，勿再假设可用）
 
 - **gemini / qoder / codebuddy CLI**：这些产品的独立 CLI **已下线**（用户 2026-07 核实）。曾经的命令模板（`gemini -m …` / `qoder -p …` / `codebuddy …`）**不再有效**，别再照抄。若将来它们恢复 CLI，先 `<cli> --version` 冒烟确认存在再用。**注意区分**：下线的是 Qoder 作为**被派发通道**的 CLI；Qoder 作为**宿主**（在 Qoder 里装本 skill）仍受支持，适配见仓库 `qoder/` 目录。
 - **Hermes**：`hermes chat -q "…" -Q`（跨供应商路由壳）——需单独部署，多数场景不划算（多一层壳、多一层折损）。仅当用户已在某机器上部署好、且明确要用时才走。
 
-结论：**当前实测可用的外部通道就是 `codex exec` + `kimi`（Kimi Code CLI）+ coding plan（claude -p + 端点覆写）+ cc_switch 桥 + 裸 API/aichat**。上面这些是历史遗留，保留仅为说明"命令模板+模型参数"抽象可随时接新 CLI。
+结论：**当前实测可用的外部通道就是 `codex exec` + `kimi`（Kimi Code CLI）+ `pi`（外部 agent harness）+ coding plan（claude -p + 端点覆写）+ cc_switch 桥 + 裸 API/aichat**。上面这些是历史遗留，保留仅为说明"命令模板+模型参数"抽象可随时接新 CLI。
 
 ## coding plan（GLM / Kimi 等，载体为 claude CLI）
 
