@@ -4,6 +4,20 @@
 
 **所有外部派发统一附 `AI_CROSS_PEER=1` 环境变量**（防套娃标记）：bash 用前缀 `AI_CROSS_PEER=1 codex exec …`；PowerShell 先 `$env:AI_CROSS_PEER='1'` 再调用；`cc_switch.py exec` 已自动注入。被派方若也装有 ai-cross，检测到该变量即知自己是子任务，只执行不再外派（规则见 SKILL.md 稳健性规则「防套娃」条）。
 
+**验证者一律在空目录里跑**（盲验目录隔离，规则见 SKILL.md「验证的框架隔离」）。项目目录里的 `.dispatch/`、`STATE.md`、`CLAUDE.md`/`AGENTS.md` 都携带我方结论，`codex exec`/`claude -p` 会加载项目指令文件，kimi 会自行打开 cwd 里的文件。两种写法：
+
+```bash
+# ① 纯文本材料：不给工具，材料走 stdin，cwd 无所谓
+AI_CROSS_PEER=1 claude -p --model X --tools "" < blind.txt
+AI_CROSS_PEER=1 codex exec -s read-only --skip-git-repo-check - < blind.txt
+
+# ② 必须带工具（要读多个文件/跑代码）：原始材料拷进空目录，在那里跑
+mkdir -p /tmp/blind-$$ && cp <原始材料...> /tmp/blind-$$/ && cd /tmp/blind-$$
+AI_CROSS_PEER=1 codex exec -s read-only --skip-git-repo-check - < prompt.txt
+```
+
+`cc_switch.py exec` 的 cwd 就是调用时的目录，同样先 `cd` 进空目录再调。执行者（本来就要改项目文件的活）不受此限。
+
 ## 大材料怎么交给被派方（>30KB 必读）
 
 「材料」指要被派方读的**那段内容本身**（一份稿件、几个源码文件拼起来的、你直接粘的一大段文字），不是"文件"这个概念。同一份材料有三种交法，代价差一个数量级——60KB 材料实测，末行埋标记核对是否完整送达（2026-08-24，Windows）：
