@@ -1,5 +1,7 @@
 # ai-cross
 
+> **本项目已并入 [xiaoyu-skill](https://github.com/keros68/xiaoyu-skill/tree/main/skills/ai-cross)。本仓库保留为只读历史入口，后续更新请前往新仓库。**
+
 ai-cross 是给 AI agent 用的 skill：按任务类型把工作派给不同档位的模型，用不同厂商的模型交叉复查关键产出，每次派发的任务全文和原始输出落盘留痕。
 
 交叉验证用来暴露单个模型漏掉的错误和分歧，不做多数表决：可独立验证的量由编排者跑代码或跑测试核验，其余分歧并列双方证据交用户裁决。
